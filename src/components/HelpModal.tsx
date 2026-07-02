@@ -1,6 +1,7 @@
 // 「ⓘ ヘルプ」— 誰にでも分かる言葉で使い方と注意事項を説明する。
 // どうしても専門用語が要る箇所は <Term> で注釈（タップで小さな説明が開く）。
 import { useState } from 'react';
+import { APP_VERSION, BUILD_LABEL } from '../version';
 
 /** 専門用語＋タップで開く注釈。点線の下線＋ⓘで「押せる」ことを示す。 */
 function Term({ children, note }: { children: React.ReactNode; note: string }) {
@@ -30,6 +31,14 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         </header>
 
         <div className="drawerBody helpBody">
+          <div className="verBox">
+            <span>
+              バージョン <b>{APP_VERSION}</b>
+            </span>
+            <span className="verBuild">ビルド {BUILD_LABEL}</span>
+            <span className="verNote">※この「ビルド」は更新のたびに変わります。数字が新しくなっていれば更新済みです。</span>
+          </div>
+
           <h3 className="helpH">このアプリは？</h3>
           <p>
             手元のPDFマニュアルを、キーワードで<b>すぐに引く</b>ためのアプリです。データはすべて

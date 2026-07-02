@@ -5,12 +5,20 @@ import { VitePWA } from 'vite-plugin-pwa';
 // Node の process を最小宣言（@types/node を足さずに型を通す。ビルド時のみ使用）
 declare const process: { env: Record<string, string | undefined> };
 
+// アプリのバージョン表示用（更新が反映されたかを画面で確認できるように）
+const APP_VERSION = process.env.npm_package_version ?? '0.0.0';
+const BUILD_TIME = new Date().toISOString();
+
 // 完全オフラインSPA。外部通信ゼロが最優先のため runtimeCaching は一切定義せず
 // （外部オリジンへ取りに行く経路そのものを作らない）、全アセットを precache する。
 export default defineConfig({
   // 既定 base '/'。GitHub Pages 等のサブパス配信では VITE_BASE=/manual-finder/ を渡す。
   // pdf.js の cMap/font パスは実行時に import.meta.env.BASE_URL から解決するのでサブパスでも壊れない。
   base: process.env.VITE_BASE ?? '/',
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __BUILD_TIME__: JSON.stringify(BUILD_TIME),
+  },
   plugins: [
     react(),
     VitePWA({

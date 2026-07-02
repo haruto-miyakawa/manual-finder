@@ -120,6 +120,34 @@ body {
   font-weight: 800;
   font-size: 16px;
 }
+.appVer {
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+/* ヘルプ内バージョン表示 */
+.verBox {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.verBuild {
+  color: var(--fg-dim);
+  font-size: 13px;
+}
+.verNote {
+  color: var(--fg-dim);
+  font-size: 12px;
+  margin-top: 2px;
+}
 .appMain {
   flex: 1;
   overflow-y: auto;

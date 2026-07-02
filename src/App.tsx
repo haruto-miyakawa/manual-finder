@@ -12,6 +12,7 @@ import { BackupPanel } from './components/BackupPanel';
 import { StorageBar } from './components/StorageBar';
 import { HelpModal } from './components/HelpModal';
 import { PdfViewer } from './pdf/PdfViewer';
+import { APP_VERSION } from './version';
 
 type Tab = 'library' | 'campaigns' | 'backup';
 interface ViewerTarget {
@@ -81,6 +82,7 @@ export default function App() {
         <div className="appTitleRow">
           <span className="appLogo">🔍</span>
           <span className="appName">マニュアル検索</span>
+          <span className="appVer">v{APP_VERSION}</span>
           <StorageBar refreshKey={storageKey} />
           <button className="helpBtn" onClick={() => setHelpOpen(true)} aria-label="使い方とヘルプ">
             ⓘ
