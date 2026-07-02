@@ -910,6 +910,83 @@ a.btn {
   text-decoration: none;
 }
 
+/* ---- 診断情報 ---- */
+.diag {
+  margin: 6px 0 10px;
+}
+.diagBody {
+  margin-top: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.diagUA {
+  font-size: 11px;
+  color: var(--fg-dim);
+  word-break: break-all;
+  margin-bottom: 6px;
+}
+.diagNg {
+  font-size: 13px;
+  color: var(--warn);
+  margin-bottom: 6px;
+}
+.diagList {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 10px;
+  font-size: 12px;
+}
+.diagList li.ok {
+  color: var(--fg-dim);
+}
+.diagList li.ng {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* ---- 画面内エラー表示 ---- */
+.errOverlay {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(8px + var(--safe-bottom));
+  z-index: 200;
+  background: #2a1416;
+  border: 1px solid #7a2a2a;
+  border-radius: 12px;
+  padding: 10px 12px;
+  max-height: 40vh;
+  overflow: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+.errHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #ffb0b0;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.errBtns {
+  display: flex;
+  gap: 6px;
+}
+.errLine {
+  font-size: 12px;
+  color: #ffdede;
+  font-family: ui-monospace, Menlo, monospace;
+  word-break: break-all;
+  padding: 3px 0;
+  border-top: 1px solid #4a2020;
+}
+
 /* ---- 変更ログ ---- */
 .logEntry {
   border-bottom: 1px solid var(--line);

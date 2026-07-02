@@ -11,6 +11,7 @@ import { Campaigns } from './components/Campaigns';
 import { BackupPanel } from './components/BackupPanel';
 import { StorageBar } from './components/StorageBar';
 import { HelpModal } from './components/HelpModal';
+import { ErrorOverlay } from './components/ErrorOverlay';
 import { PdfViewer } from './pdf/PdfViewer';
 import { APP_VERSION } from './version';
 
@@ -163,6 +164,8 @@ export default function App() {
           onClose={() => setViewer(null)}
         />
       )}
+
+      <ErrorOverlay />
     </div>
   );
 }

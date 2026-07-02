@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { APP_VERSION, BUILD_LABEL } from '../version';
 import { ChangelogModal } from './ChangelogModal';
+import { Diagnostics } from './Diagnostics';
 
 // お問い合わせ先（Googleフォーム）。メアドは公開せず、送信内容はフォーム作成者のGmailに通知される。
 // これは外部リンクで、ボタンをタップしたときだけ別タブで開く（アプリの自動外部通信は無し）。
@@ -54,6 +55,8 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               📝 変更ログ
             </button>
           </div>
+
+          <Diagnostics />
 
           <h3 className="helpH">このアプリは？</h3>
           <p>

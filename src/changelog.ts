@@ -7,6 +7,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.1',
+    date: '2026-07-02',
+    changes: [
+      '不具合調査用に「診断情報」（対応機能の一覧）と画面内エラー表示を追加',
+    ],
+  },
+  {
     version: '1.2.0',
     date: '2026-07-02',
     changes: [

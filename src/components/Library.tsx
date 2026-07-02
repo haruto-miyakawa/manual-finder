@@ -39,7 +39,12 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
           }
         });
       } catch (e) {
-        alert(`取り込み失敗: ${f.name}\n${e instanceof Error ? e.message : e}`);
+        const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+        alert(`取り込み失敗: ${f.name}\n${msg}`);
+        // 画面内エラー表示(ErrorOverlay)にも出す（コピー可・後から確認できる）
+        setTimeout(() => {
+          throw e instanceof Error ? e : new Error(msg);
+        });
       }
     }
     setImporting(null);
