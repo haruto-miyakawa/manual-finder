@@ -506,7 +506,9 @@ body {
 .drawer {
   width: 100%;
   max-width: 640px;
-  max-height: 92vh;
+  /* 上端が必ずステータスバー/ノッチの下に来るよう安全域ぶん空ける（閉じるボタンを押せるように） */
+  max-height: 92vh; /* 古いブラウザ用フォールバック */
+  max-height: calc(100dvh - env(safe-area-inset-top) - 16px);
   background: var(--bg);
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
@@ -857,7 +859,8 @@ body {
 
 /* ---- ヘルプモーダル ---- */
 .drawer.help {
-  max-height: 94vh;
+  max-height: 94vh; /* フォールバック */
+  max-height: calc(100dvh - env(safe-area-inset-top) - 16px);
 }
 .helpBody {
   line-height: 1.7;
@@ -1107,4 +1110,24 @@ a.btn {
   border-radius: 2px;
   padding: 0;
   mix-blend-mode: multiply;
+}
+
+/* ---- 狭い画面（スマホ）調整 ---- */
+@media (max-width: 430px) {
+  /* ヘッダーの詰まり緩和: 使用量テキストは省略し、バーだけ残す（数値はⓘ内で確認可） */
+  .storageText {
+    display: none;
+  }
+  .storageBar {
+    min-width: 0;
+  }
+  .appName {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  /* モーダル内のボタン間隔を少し広げて誤タップ低減 */
+  .drawerHead {
+    gap: 12px;
+    padding: 12px;
+  }
 }

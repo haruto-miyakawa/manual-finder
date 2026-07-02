@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.5',
+    date: '2026-07-03',
+    changes: [
+      'スマホ表示を改善: モーダル（ⓘ・詳細など）の「閉じる」ボタンがステータスバー/ノッチに隠れて押せない問題を修正',
+      '狭い画面でのヘッダーの詰まりを緩和',
+    ],
+  },
+  {
     version: '1.2.4',
     date: '2026-07-03',
     changes: [
