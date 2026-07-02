@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.2',
+    date: '2026-07-02',
+    changes: [
+      'アプリ更新が反映されにくい問題に対応（ⓘに「アプリを更新」ボタンを追加、配信のキャッシュ設定を最適化）',
+      'Vercel配信に対応（vercel.json）',
+    ],
+  },
+  {
     version: '1.2.1',
     date: '2026-07-02',
     changes: [

@@ -27,6 +27,17 @@ function Term({ children, note }: { children: React.ReactNode; note: string }) {
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
   const [showLog, setShowLog] = useState(false);
+
+  async function forceUpdate() {
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration();
+      if (reg) await reg.update(); // 最新の sw.js を取りに行く
+    } catch {
+      /* noop */
+    }
+    location.reload();
+  }
+
   return (
     <>
       <div className="overlay" onClick={onClose}>
@@ -46,6 +57,10 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             <span className="verBuild">ビルド {BUILD_LABEL}</span>
             <span className="verNote">※この「ビルド」は更新のたびに変わります。数字が新しくなっていれば更新済みです。</span>
           </div>
+
+          <button className="btn wide" onClick={forceUpdate}>
+            🔄 アプリを更新（最新版を取得）
+          </button>
 
           <div className="helpActions">
             <a className="btn" href={CONTACT_FORM_URL} target="_blank" rel="noopener noreferrer">
