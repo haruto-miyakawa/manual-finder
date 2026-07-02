@@ -813,6 +813,114 @@ body {
   font-size: 14px;
 }
 
+/* ---- ヘルプ(ⓘ)ボタン ---- */
+.helpBtn {
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--accent);
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 700;
+  margin-left: 8px;
+  flex: 0 0 auto;
+}
+
+/* ---- ヘルプモーダル ---- */
+.drawer.help {
+  max-height: 94vh;
+}
+.helpBody {
+  line-height: 1.7;
+  font-size: 15px;
+}
+.helpBody p {
+  margin: 6px 0 14px;
+}
+.helpH {
+  font-size: 16px;
+  margin: 16px 0 4px;
+  color: var(--accent);
+}
+.helpBody .note {
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+.helpBox {
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 14px 0;
+}
+.helpBox.danger {
+  border-color: #5a4a1f;
+  background: #241f12;
+}
+.helpBox.danger .helpH {
+  color: var(--warn);
+}
+.helpList {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.helpList li {
+  margin: 8px 0;
+}
+
+/* ---- 専門用語の注釈（Term） ---- */
+.term {
+  position: relative;
+  display: inline;
+}
+.termWord {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  padding: 0;
+  border-bottom: 1px dotted var(--accent);
+  cursor: pointer;
+}
+.termMark {
+  font-size: 0.8em;
+  margin-left: 1px;
+  vertical-align: 0.2em;
+}
+.termNote {
+  display: block;
+  margin: 6px 0;
+  padding: 10px 12px;
+  background: var(--bg3);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+/* ---- 暗号化オプション行 ---- */
+.encRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 4px 0;
+}
+.encRow input[type='checkbox'] {
+  width: 24px;
+  height: 24px;
+}
+.encRow.disabled {
+  opacity: 0.55;
+}
+.warnText {
+  color: var(--warn);
+}
+
 /* ---- pdf.js テキストレイヤ（透明・重ね・ハイライト） ---- */
 .textLayer {
   position: absolute;

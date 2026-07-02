@@ -10,6 +10,7 @@ import { PdfDetail } from './components/PdfDetail';
 import { Campaigns } from './components/Campaigns';
 import { BackupPanel } from './components/BackupPanel';
 import { StorageBar } from './components/StorageBar';
+import { HelpModal } from './components/HelpModal';
 import { PdfViewer } from './pdf/PdfViewer';
 
 type Tab = 'library' | 'campaigns' | 'backup';
@@ -32,6 +33,7 @@ export default function App() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [storageKey, setStorageKey] = useState(0);
   const [dismissBanner, setDismissBanner] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const pdfCount = useLiveQuery(() => db.pdfs.count(), [], 0);
   const lastBackup = useLiveQuery(() => getMeta<number>('lastBackupAt'), [storageKey], undefined);
@@ -80,6 +82,9 @@ export default function App() {
           <span className="appLogo">🔍</span>
           <span className="appName">マニュアル検索</span>
           <StorageBar refreshKey={storageKey} />
+          <button className="helpBtn" onClick={() => setHelpOpen(true)} aria-label="使い方とヘルプ">
+            ⓘ
+          </button>
         </div>
         <SearchBar value={query} onChange={setQuery} searching={searching} />
       </header>
@@ -144,6 +149,8 @@ export default function App() {
           onChanged={() => setStorageKey((k) => k + 1)}
         />
       )}
+
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
 
       {viewer && (
         <PdfViewer

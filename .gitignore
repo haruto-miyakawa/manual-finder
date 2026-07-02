@@ -12,3 +12,12 @@ public/icons/
 
 # 開発サーバ等のログ
 *.log
+
+# 実データ・バックアップの誤コミット防止（マニュアル本体を絶対にリポジトリへ入れない）
+*.pdf
+*.zip
+*.mfbackup
+
+# テスト一時ファイル
+e2e-run.mjs
+dev-smoke-run.mjs
