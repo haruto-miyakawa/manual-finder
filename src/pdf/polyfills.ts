@@ -84,6 +84,49 @@ def(Map.prototype, 'getOrInsert', getOrInsert);
 def(WeakMap.prototype, 'getOrInsertComputed', getOrInsertComputed);
 def(WeakMap.prototype, 'getOrInsert', getOrInsert);
 
+// ---- ReadableStream の非同期反復（for await ... of stream）----
+// Safari/WebKit は ReadableStream の async iteration を未実装。
+// pdf.js v6 の getTextContent が `for await (const value of readableStream)` を使うため、
+// iPad/iPhone(Safari) で「PDF取り込み」時に必ず失敗していた（Chrome/Node は対応済み）。
+// getReader() ベースで非同期イテレータを補う（main/worker 両方に効かせる）。
+if (typeof ReadableStream !== 'undefined') {
+  const rsProto = ReadableStream.prototype as any;
+  if (typeof rsProto.values !== 'function') {
+    def(rsProto, 'values', function values(this: ReadableStream, opts?: { preventCancel?: boolean }) {
+      const preventCancel = !!opts?.preventCancel;
+      const reader = this.getReader();
+      return {
+        async next() {
+          try {
+            const result = await reader.read();
+            if (result.done) reader.releaseLock();
+            return result;
+          } catch (e) {
+            reader.releaseLock();
+            throw e;
+          }
+        },
+        async return(value: unknown) {
+          if (!preventCancel) {
+            const cancelPromise = reader.cancel(value);
+            reader.releaseLock();
+            await cancelPromise;
+          } else {
+            reader.releaseLock();
+          }
+          return { value, done: true };
+        },
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+      };
+    });
+  }
+  if (typeof rsProto[Symbol.asyncIterator] !== 'function') {
+    def(rsProto, Symbol.asyncIterator as unknown as string, rsProto.values);
+  }
+}
+
 // ---- Promise.withResolvers（Safari 17.4+）----
 // pdf.js v6 が多用。古いiOS Safariに無いと「PDF取り込み」でエラーになるため補う。
 def(Promise, 'withResolvers', function withResolvers(this: PromiseConstructor) {

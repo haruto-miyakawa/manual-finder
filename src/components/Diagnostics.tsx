@@ -27,6 +27,12 @@ function featureChecks(): Array<{ name: string; ok: boolean }> {
     { name: 'Uint8Array.toHex', ok: fn(U.toHex) },
     { name: 'Uint8Array.toBase64', ok: fn(U.toBase64) },
     { name: 'Map.getOrInsertComputed', ok: fn(M.getOrInsertComputed) },
+    {
+      name: 'ReadableStream.asyncIterator',
+      ok:
+        typeof ReadableStream !== 'undefined' &&
+        typeof (ReadableStream.prototype as unknown as Record<symbol, unknown>)[Symbol.asyncIterator] === 'function',
+    },
     { name: 'crypto.subtle', ok: !!(g.crypto && (g.crypto as { subtle?: unknown }).subtle) },
     { name: 'IndexedDB', ok: typeof indexedDB !== 'undefined' },
     { name: 'WeakRef', ok: fn(g.WeakRef) },

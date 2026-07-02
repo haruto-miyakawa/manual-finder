@@ -9,9 +9,8 @@ declare const process: { env: Record<string, string | undefined> };
 const APP_VERSION = process.env.npm_package_version ?? '0.0.0';
 const BUILD_TIME = new Date().toISOString();
 
-// TEMP（原因調査）: Safari固有エラーの発生箇所を特定するため、一時的に非圧縮＋sourcemap。
-// 原因特定後に false へ戻す。
-const DEBUG_UNMIN = true;
+// 原因調査時のみ true にすると非圧縮＋sourcemap（通常は false）。
+const DEBUG_UNMIN = false;
 
 // 完全オフラインSPA。外部通信ゼロが最優先のため runtimeCaching は一切定義せず
 // （外部オリジンへ取りに行く経路そのものを作らない）、全アセットを precache する。
