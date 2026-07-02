@@ -62,7 +62,7 @@ export interface MetaRow {
 export interface SearchHit {
   pdfId: string;
   page: number;
-  kind: 'page' | 'note' | 'memo';
+  kind: 'page' | 'note' | 'memo' | 'file';
   title: string;
   snippetHtml: string; // 一致語を <mark> で強調済みHTML（サニタイズ済みテキストのみ）
   score: number;

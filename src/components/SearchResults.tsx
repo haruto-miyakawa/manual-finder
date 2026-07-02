@@ -55,7 +55,9 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
             ? pageTextByKey.get(key) ?? ''
             : h.kind === 'note'
               ? noteTextByKey.get(key) ?? ''
-              : pdf?.memo ?? '';
+              : h.kind === 'file'
+                ? `${pdf?.title ?? ''} ／ ${pdf?.fileName ?? ''}`
+                : pdf?.memo ?? '';
         return {
           pdfId: h.pdfId,
           page: h.page,
@@ -98,7 +100,13 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
               <div className="hitTop">
                 <span className="hitTitle">{h.title}</span>
                 <span className="hitPage">
-                  {h.kind === 'memo' ? '📝 メモ' : h.kind === 'note' ? `p.${h.page} 📝メモ` : `p.${h.page}`}
+                  {h.kind === 'memo'
+                    ? '📝 メモ'
+                    : h.kind === 'file'
+                      ? '📄 ファイル名'
+                      : h.kind === 'note'
+                        ? `p.${h.page} 📝メモ`
+                        : `p.${h.page}`}
                 </span>
               </div>
               <div className="hitSnippet" dangerouslySetInnerHTML={{ __html: h.snippetHtml }} />

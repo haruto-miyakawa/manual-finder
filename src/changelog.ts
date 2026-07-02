@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.4.2',
+    date: '2026-07-03',
+    changes: [
+      'ファイル名（タイトル）でも検索できるように',
+      '不具合修正: ビューアで操作できなくなることがある問題に対応（上部バーを常時表示にして、閉じる/ズーム/メモへ常にアクセス可能に）',
+      '設定から「保存の永続化を要求」ボタンを削除（分かりにくいため。永続化は起動時に自動で申請）',
+    ],
+  },
+  {
     version: '1.4.1',
     date: '2026-07-03',
     changes: [

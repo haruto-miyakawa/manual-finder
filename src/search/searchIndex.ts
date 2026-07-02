@@ -13,7 +13,7 @@ interface IndexDoc {
 
 const INDEX_META_KEY = 'searchIndex';
 const INDEX_VER_KEY = 'searchIndexVer';
-const INDEX_VER = 2; // 2: メモ/ページメモも索引に含む
+const INDEX_VER = 3; // 3: メモ/ページメモ/ファイル名(タイトル)も索引に含む
 
 // index/query 双方で同一トークナイザ。processTerm は tokenize 内で正規化済みなので恒等。
 const OPTIONS = {
@@ -40,13 +40,15 @@ export function getIndex(): MiniSearch<IndexDoc> {
   return mini;
 }
 
-export type HitKind = 'page' | 'note' | 'memo';
+export type HitKind = 'page' | 'note' | 'memo' | 'file';
 
 // 索引の doc id 規約:
 //   ページ本文: `${pdfId}#${page}`
 //   ページメモ: `n:${pdfId}#${page}`
 //   PDFメモ:    `m:${pdfId}`
+//   ファイル名/タイトル: `f:${pdfId}`
 export function parseDocId(id: string): { kind: HitKind; pdfId: string; page: number } {
+  if (id.startsWith('f:')) return { kind: 'file', pdfId: id.slice(2), page: 1 };
   if (id.startsWith('m:')) return { kind: 'memo', pdfId: id.slice(2), page: 1 };
   const isNote = id.startsWith('n:');
   const rest = isNote ? id.slice(2) : id;
@@ -85,7 +87,11 @@ export async function rebuildFromPages(): Promise<number> {
   ]);
   const docs: IndexDoc[] = [];
   for (const r of pages) docs.push({ id: r.id, text: r.text });
-  for (const p of pdfs) if (p.memo && p.memo.trim()) docs.push({ id: `m:${p.id}`, text: p.memo });
+  for (const p of pdfs) {
+    if (p.memo && p.memo.trim()) docs.push({ id: `m:${p.id}`, text: p.memo });
+    const f = `${p.title ?? ''} ${p.fileName ?? ''}`.trim();
+    if (f) docs.push({ id: `f:${p.id}`, text: f });
+  }
   for (const n of notes) if (n.text && n.text.trim()) docs.push({ id: `n:${n.id}`, text: n.text });
   fresh.addAll(docs);
   mini = fresh;

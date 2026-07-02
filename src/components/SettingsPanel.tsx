@@ -1,7 +1,6 @@
 // 設定タブ。PDFの操作モード（タップ/スクロール）などをまとめて変更できる。
 import { useSettings, updateSettings } from '../settings';
 import { StorageBar } from './StorageBar';
-import { requestPersistentStorage } from '../db/repo';
 
 export function SettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
   const settings = useSettings();
@@ -34,9 +33,6 @@ export function SettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
         <div className="settingStorage">
           <StorageBar />
         </div>
-        <button className="btn big" onClick={() => void requestPersistentStorage()}>
-          保存の永続化を要求する
-        </button>
       </section>
 
       <section className="backupSec">

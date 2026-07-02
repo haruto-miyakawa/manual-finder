@@ -74,6 +74,7 @@ export async function importPdfFile(
 
   // 索引へ（本文が空のスキャンPDFでもページ行は入れる＝存在は検索対象外だが一覧には出る）
   addPages(pageRows);
+  upsertTextDoc(`f:${id}`, `${title} ${file.name}`); // ファイル名/タイトルも検索対象に
   await persistNow();
 
   void ensureThumb(id); // サムネイル生成（非同期・失敗しても取り込みは成功）
@@ -102,6 +103,7 @@ export async function deletePdf(id: string): Promise<void> {
   );
   removeDocIds(pageRows as string[]);
   removeTextDoc(`m:${id}`);
+  removeTextDoc(`f:${id}`);
   for (const nid of noteIds) removeTextDoc(`n:${nid}`);
   await persistNow();
 }
@@ -117,7 +119,10 @@ export async function setFavorite(id: string, favorite: boolean): Promise<void> 
   await db.pdfs.update(id, { favorite, updatedAt: Date.now() });
 }
 export async function setTitle(id: string, title: string): Promise<void> {
-  await db.pdfs.update(id, { title: title.trim() || '(無題)', updatedAt: Date.now() });
+  const t = title.trim() || '(無題)';
+  const cur = await db.pdfs.get(id);
+  await db.pdfs.update(id, { title: t, updatedAt: Date.now() });
+  upsertTextDoc(`f:${id}`, `${t} ${cur?.fileName ?? ''}`);
 }
 export async function setMemo(id: string, memo: string): Promise<void> {
   await db.pdfs.update(id, { memo, updatedAt: Date.now() });

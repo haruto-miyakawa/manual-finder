@@ -314,8 +314,8 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
 
   return (
     <div className={`viewerRoot${immersive ? ' immersive' : ''}`}>
-      {barsVisible && (
-        <header className="viewerBar">
+      {/* 上バーは常時表示（閉じる/ズーム/メモに常にアクセスできるように）。下バー(スライダー)だけ出し入れする */}
+      <header className="viewerBar">
           <button className="btn iconBtn" onClick={onClose} aria-label="閉じる">
             ✕
           </button>
@@ -340,8 +340,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
               ＋
             </button>
           </div>
-        </header>
-      )}
+      </header>
 
       {loading ? (
         <div className="viewerScroll">

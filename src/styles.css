@@ -1299,6 +1299,7 @@ a.btn {
   inset: 0;
   z-index: 2;
   overflow: hidden;
+  pointer-events: none; /* 空のリンク層がタップを奪わないように（リンク本体だけ auto） */
 }
 .pdfLink {
   position: absolute;
@@ -1309,6 +1310,7 @@ a.btn {
   margin: 0;
   cursor: pointer;
   border-radius: 2px;
+  pointer-events: auto;
 }
 .pdfLink:active {
   background: rgba(62, 166, 255, 0.28);
