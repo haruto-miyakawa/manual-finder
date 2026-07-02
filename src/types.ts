@@ -58,10 +58,11 @@ export interface MetaRow {
   value: unknown;
 }
 
-/** 検索ヒット（ページ単位）。 */
+/** 検索ヒット（ページ本文 / PDFメモ / ページメモ）。 */
 export interface SearchHit {
   pdfId: string;
   page: number;
+  kind: 'page' | 'note' | 'memo';
   title: string;
   snippetHtml: string; // 一致語を <mark> で強調済みHTML（サニタイズ済みテキストのみ）
   score: number;

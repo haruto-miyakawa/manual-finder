@@ -6,6 +6,8 @@ import {
   addPages,
   makeDocId,
   removeDocIds,
+  removeTextDoc,
+  upsertTextDoc,
   persistNow,
   rebuildFromPages,
 } from '../search/searchIndex';
@@ -83,6 +85,7 @@ export async function importPdfFile(
 /** PDFを完全削除（メタ・バイト・ページ・写真・索引・紐付け施策の解除）。 */
 export async function deletePdf(id: string): Promise<void> {
   const pageRows = await db.pages.where('pdfId').equals(id).primaryKeys();
+  const noteIds = (await db.pageNotes.where('pdfId').equals(id).primaryKeys()) as string[];
   await db.transaction(
     'rw',
     [db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, db.thumbs, db.pageNotes],
@@ -98,6 +101,8 @@ export async function deletePdf(id: string): Promise<void> {
     },
   );
   removeDocIds(pageRows as string[]);
+  removeTextDoc(`m:${id}`);
+  for (const nid of noteIds) removeTextDoc(`n:${nid}`);
   await persistNow();
 }
 
@@ -116,6 +121,7 @@ export async function setTitle(id: string, title: string): Promise<void> {
 }
 export async function setMemo(id: string, memo: string): Promise<void> {
   await db.pdfs.update(id, { memo, updatedAt: Date.now() });
+  upsertTextDoc(`m:${id}`, memo); // メモも検索対象に
 }
 export async function setTags(id: string, tags: string[]): Promise<void> {
   const clean = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));
@@ -135,6 +141,7 @@ export async function setPageNote(pdfId: string, page: number, text: string): Pr
   const t = text.trim();
   if (!t) await db.pageNotes.delete(id);
   else await db.pageNotes.put({ id, pdfId, page, text: t, updatedAt: Date.now() });
+  upsertTextDoc(`n:${id}`, t); // ページメモも検索対象に
 }
 
 // ---- 写真（PDFへの注釈） ----

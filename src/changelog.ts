@@ -7,6 +7,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.4.1',
+    date: '2026-07-03',
+    changes: [
+      'メモも検索対象に: PDFのメモ・各ページのメモもキーワード検索でヒット（結果に「メモ」表示、タップで該当ページへ）',
+    ],
+  },
+  {
     version: '1.4.0',
     date: '2026-07-03',
     changes: [

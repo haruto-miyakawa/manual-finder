@@ -12,6 +12,8 @@ interface IndexDoc {
 }
 
 const INDEX_META_KEY = 'searchIndex';
+const INDEX_VER_KEY = 'searchIndexVer';
+const INDEX_VER = 2; // 2: メモ/ページメモも索引に含む
 
 // index/query 双方で同一トークナイザ。processTerm は tokenize 内で正規化済みなので恒等。
 const OPTIONS = {
@@ -38,10 +40,18 @@ export function getIndex(): MiniSearch<IndexDoc> {
   return mini;
 }
 
-/** id 文字列を pdfId/page に分解（pdfId に '#' は含まれない前提で最後の '#' で分割）。 */
-export function splitDocId(id: string): { pdfId: string; page: number } {
-  const i = id.lastIndexOf('#');
-  return { pdfId: id.slice(0, i), page: Number(id.slice(i + 1)) };
+export type HitKind = 'page' | 'note' | 'memo';
+
+// 索引の doc id 規約:
+//   ページ本文: `${pdfId}#${page}`
+//   ページメモ: `n:${pdfId}#${page}`
+//   PDFメモ:    `m:${pdfId}`
+export function parseDocId(id: string): { kind: HitKind; pdfId: string; page: number } {
+  if (id.startsWith('m:')) return { kind: 'memo', pdfId: id.slice(2), page: 1 };
+  const isNote = id.startsWith('n:');
+  const rest = isNote ? id.slice(2) : id;
+  const i = rest.lastIndexOf('#');
+  return { kind: isNote ? 'note' : 'page', pdfId: rest.slice(0, i), page: Number(rest.slice(i + 1)) };
 }
 
 export function makeDocId(pdfId: string, page: number): string {
@@ -50,8 +60,9 @@ export function makeDocId(pdfId: string, page: number): string {
 
 /** 起動時: 保存済みインデックスを復元。無ければ pages から再構築。 */
 export async function initSearchIndex(): Promise<void> {
+  const ver = await getMeta<number>(INDEX_VER_KEY);
   const json = await getMeta<string>(INDEX_META_KEY);
-  if (json) {
+  if (json && ver === INDEX_VER) {
     try {
       mini = MiniSearch.loadJSON<IndexDoc>(json, OPTIONS);
       return;
@@ -60,17 +71,27 @@ export async function initSearchIndex(): Promise<void> {
       mini = null;
     }
   }
+  // 索引が無い/古い（メモ未収録）なら作り直す（PDF再パース不要・高速）
   await rebuildFromPages();
 }
 
-/** pages テーブルの全ページ本文から索引を作り直す（PDF再パース不要の復旧導線）。 */
+/** ページ本文＋PDFメモ＋ページメモから索引を作り直す（PDF再パース不要の復旧導線）。 */
 export async function rebuildFromPages(): Promise<number> {
   const fresh = create();
-  const rows = await db.pages.toArray();
-  fresh.addAll(rows.map((r) => ({ id: r.id, text: r.text })));
+  const [pages, pdfs, notes] = await Promise.all([
+    db.pages.toArray(),
+    db.pdfs.toArray(),
+    db.pageNotes.toArray(),
+  ]);
+  const docs: IndexDoc[] = [];
+  for (const r of pages) docs.push({ id: r.id, text: r.text });
+  for (const p of pdfs) if (p.memo && p.memo.trim()) docs.push({ id: `m:${p.id}`, text: p.memo });
+  for (const n of notes) if (n.text && n.text.trim()) docs.push({ id: `n:${n.id}`, text: n.text });
+  fresh.addAll(docs);
   mini = fresh;
   await persistNow();
-  return rows.length;
+  await setMeta(INDEX_VER_KEY, INDEX_VER);
+  return docs.length;
 }
 
 /** PDF追加時: そのPDFのページ群を索引へ。 */
@@ -87,14 +108,34 @@ export function removeDocIds(ids: string[]): void {
   scheduleSave();
 }
 
+/** メモ/ページメモ等の任意テキスト文書を索引に追加/更新/削除（空なら削除）。 */
+export function upsertTextDoc(id: string, text: string): void {
+  const idx = getIndex();
+  const t = (text || '').trim();
+  if (idx.has(id)) {
+    if (t) idx.replace({ id, text: t });
+    else idx.discard(id);
+  } else if (t) {
+    idx.add({ id, text: t });
+  }
+  scheduleSave();
+}
+
+export function removeTextDoc(id: string): void {
+  const idx = getIndex();
+  if (idx.has(id)) idx.discard(id);
+  scheduleSave();
+}
+
 export interface RawHit {
   id: string;
+  kind: HitKind;
   pdfId: string;
   page: number;
   score: number;
 }
 
-/** ページ単位の検索。空クエリは空配列。 */
+/** 検索（ページ本文・メモ・ページメモ横断）。空クエリは空配列。 */
 export function searchPages(query: string, limit = 200): RawHit[] {
   const q = query.trim();
   if (!q) return [];
@@ -102,8 +143,8 @@ export function searchPages(query: string, limit = 200): RawHit[] {
   const results = idx.search(q);
   const hits: RawHit[] = [];
   for (const r of results) {
-    const { pdfId, page } = splitDocId(r.id as string);
-    hits.push({ id: r.id as string, pdfId, page, score: r.score });
+    const { kind, pdfId, page } = parseDocId(r.id as string);
+    hits.push({ id: r.id as string, kind, pdfId, page, score: r.score });
     if (hits.length >= limit) break;
   }
   return hits;

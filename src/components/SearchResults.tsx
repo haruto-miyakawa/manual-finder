@@ -33,23 +33,34 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
       const raw = searchPages(q, 400);
       setTotal(raw.length);
       const top = raw.slice(0, MAX_CARDS);
-      // ページ本文とPDFタイトルをまとめて取得
-      const pageIds = top.map((h) => h.id);
+      // 種別ごとに本文/メモ/ページメモ＋タイトルをまとめて取得
       const pdfIds = Array.from(new Set(top.map((h) => h.pdfId)));
-      const [pageRows, pdfRows] = await Promise.all([
-        db.pages.bulkGet(pageIds),
+      const pageKeys = top.filter((h) => h.kind === 'page').map((h) => `${h.pdfId}#${h.page}`);
+      const noteKeys = top.filter((h) => h.kind === 'note').map((h) => `${h.pdfId}#${h.page}`);
+      const [pdfRows, pageRows, noteRows] = await Promise.all([
         db.pdfs.bulkGet(pdfIds),
+        db.pages.bulkGet(pageKeys),
+        db.pageNotes.bulkGet(noteKeys),
       ]);
       if (cancelled) return;
-      const titleById = new Map<string, string>();
-      pdfRows.forEach((p) => p && titleById.set(p.id, p.title));
+      const pdfById = new Map(pdfRows.filter(Boolean).map((p) => [p!.id, p!] as const));
+      const pageTextByKey = new Map(pageKeys.map((k, i) => [k, pageRows[i]?.text ?? ''] as const));
+      const noteTextByKey = new Map(noteKeys.map((k, i) => [k, noteRows[i]?.text ?? ''] as const));
 
-      const built: SearchHit[] = top.map((h, i) => {
-        const text = pageRows[i]?.text ?? '';
+      const built: SearchHit[] = top.map((h) => {
+        const pdf = pdfById.get(h.pdfId);
+        const key = `${h.pdfId}#${h.page}`;
+        const text =
+          h.kind === 'page'
+            ? pageTextByKey.get(key) ?? ''
+            : h.kind === 'note'
+              ? noteTextByKey.get(key) ?? ''
+              : pdf?.memo ?? '';
         return {
           pdfId: h.pdfId,
           page: h.page,
-          title: titleById.get(h.pdfId) ?? '(削除済み)',
+          kind: h.kind,
+          title: pdf?.title ?? '(削除済み)',
           snippetHtml: buildSnippet(text, q),
           score: h.score,
         };
@@ -79,11 +90,16 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
       )}
       <ul className="resultList">
         {hits.map((h) => (
-          <li key={`${h.pdfId}#${h.page}`}>
-            <button className="hitCard" onClick={() => onOpen(h.pdfId, h.page, query)}>
+          <li key={`${h.kind}:${h.pdfId}#${h.page}`}>
+            <button
+              className="hitCard"
+              onClick={() => onOpen(h.pdfId, h.kind === 'memo' ? 1 : h.page, query)}
+            >
               <div className="hitTop">
                 <span className="hitTitle">{h.title}</span>
-                <span className="hitPage">p.{h.page}</span>
+                <span className="hitPage">
+                  {h.kind === 'memo' ? '📝 メモ' : h.kind === 'note' ? `p.${h.page} 📝メモ` : `p.${h.page}`}
+                </span>
               </div>
               <div className="hitSnippet" dangerouslySetInnerHTML={{ __html: h.snippetHtml }} />
             </button>
