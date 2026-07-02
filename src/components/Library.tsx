@@ -16,6 +16,7 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState<{ name: string; page: number; total: number; idx: number; count: number } | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const allTags = useMemo(() => {
     const s = new Set<string>();
@@ -25,6 +26,32 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
 
   const favorites = pdfs.filter((p) => p.favorite);
   const listed = pdfs.filter((p) => (tagFilter ? p.tags.includes(tagFilter) : true));
+
+  const UNCAT = '未分類';
+  // カテゴリ別にグループ化（名前は五十音/アルファベット順、未分類は最後）
+  const groups = useMemo(() => {
+    const map = new Map<string, PdfMeta[]>();
+    for (const p of listed) {
+      const cat = (p.category && p.category.trim()) || UNCAT;
+      const arr = map.get(cat) ?? [];
+      arr.push(p);
+      map.set(cat, arr);
+    }
+    const names = Array.from(map.keys()).sort((a, b) => {
+      if (a === UNCAT) return 1;
+      if (b === UNCAT) return -1;
+      return a.localeCompare(b, 'ja');
+    });
+    return names.map((name) => ({ name, items: map.get(name)! }));
+  }, [listed]);
+
+  const toggleCat = (name: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
 
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -97,20 +124,40 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
 
       <section>
         <h2 className="secTitle">
-          マニュアル一覧 <span className="count">{listed.length}</span>
+          マニュアル <span className="count">{listed.length}</span>
         </h2>
         {pdfs.length === 0 && <div className="empty">まだPDFがありません。「＋ PDFを取り込む」から追加してください。</div>}
-        <ul className="pdfList">
-          {listed.map((p) => (
-            <PdfRow
-              key={p.id}
-              pdf={p}
-              onOpen={() => onOpenViewer(p.id, 1, '')}
-              onDetail={() => onOpenDetail(p.id)}
-              onToggleFav={() => void setFavorite(p.id, !p.favorite)}
-            />
-          ))}
-        </ul>
+        {tagFilter && listed.length === 0 && <div className="empty">「{tagFilter}」に該当なし。</div>}
+
+        {groups.map((g) => {
+          const isOpen = !collapsed.has(g.name);
+          return (
+            <div key={g.name} className="catSection">
+              <button
+                className={`catHeader${g.name === UNCAT ? ' uncat' : ''}`}
+                onClick={() => toggleCat(g.name)}
+                aria-expanded={isOpen}
+              >
+                <span className="catCaret">{isOpen ? '▾' : '▸'}</span>
+                <span className="catName">{g.name}</span>
+                <span className="catCount">{g.items.length}</span>
+              </button>
+              {isOpen && (
+                <ul className="pdfList">
+                  {g.items.map((p) => (
+                    <PdfRow
+                      key={p.id}
+                      pdf={p}
+                      onOpen={() => onOpenViewer(p.id, 1, '')}
+                      onDetail={() => onOpenDetail(p.id)}
+                      onToggleFav={() => void setFavorite(p.id, !p.favorite)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </section>
 
       {importing && (

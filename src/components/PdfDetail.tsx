@@ -6,6 +6,7 @@ import {
   addPhoto,
   deletePdf,
   deletePhoto,
+  setCategory,
   setFavorite,
   setMemo,
   setTags,
@@ -30,11 +31,25 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
   const [title, setTitleLocal] = useState('');
   const [memo, setMemoLocal] = useState('');
   const [tagText, setTagText] = useState('');
+  const [category, setCategoryLocal] = useState('');
+
+  // 既存カテゴリ（候補として datalist に出す）
+  const allCats = useLiveQuery(
+    async () => {
+      const all = await db.pdfs.toArray();
+      return Array.from(new Set(all.map((p) => (p.category || '').trim()).filter(Boolean))).sort(
+        (a, b) => a.localeCompare(b, 'ja'),
+      );
+    },
+    [],
+    [],
+  );
 
   useEffect(() => {
     if (pdf) {
       setTitleLocal(pdf.title);
       setMemoLocal(pdf.memo);
+      setCategoryLocal(pdf.category || '');
     }
   }, [pdf?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -95,6 +110,21 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
             {pdf.pageCount}ページ ・ {(pdf.byteSize / 1024 / 1024).toFixed(1)}MB
             {!pdf.hasText && ' ・ 本文テキスト無し（検索対象外）'}
           </div>
+
+          <label className="fieldLabel">カテゴリ（分類・1つ）</label>
+          <input
+            className="textField"
+            list="cat-suggestions"
+            value={category}
+            onChange={(e) => setCategoryLocal(e.target.value)}
+            onBlur={() => void setCategory(pdfId, category)}
+            placeholder="例: エアコン / 冷蔵庫 / レジ・接客（未入力＝未分類）"
+          />
+          <datalist id="cat-suggestions">
+            {allCats.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
 
           <label className="fieldLabel">タグ</label>
           <div className="tagEditRow">

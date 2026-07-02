@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.8',
+    date: '2026-07-03',
+    changes: [
+      'カテゴリ（分類）を追加: PDFごとに1つ設定でき、ライブラリをカテゴリ別の折りたたみセクションで表示（未設定は「未分類」）',
+      '詳細画面でカテゴリを入力（既存カテゴリからの候補選択も可）',
+    ],
+  },
+  {
     version: '1.2.7',
     date: '2026-07-03',
     changes: [

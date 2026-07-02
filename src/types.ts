@@ -9,6 +9,7 @@ export interface PdfMeta {
   byteSize: number; // PDFバイト長
   hasText: boolean; // テキストレイヤ有無（スキャンPDF検出用）
   favorite: boolean;
+  category?: string; // 分類（1つ）。未設定/空は「未分類」扱い
   tags: string[];
   memo: string; // テキストメモ
   createdAt: number; // 取り込み時刻(ms)

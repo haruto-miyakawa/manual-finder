@@ -47,6 +47,7 @@ export async function importPdfFile(
     byteSize: file.size,
     hasText,
     favorite: false,
+    category: '',
     tags: [],
     memo: '',
     createdAt: now,
@@ -110,6 +111,9 @@ export async function setMemo(id: string, memo: string): Promise<void> {
 export async function setTags(id: string, tags: string[]): Promise<void> {
   const clean = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));
   await db.pdfs.update(id, { tags: clean, updatedAt: Date.now() });
+}
+export async function setCategory(id: string, category: string): Promise<void> {
+  await db.pdfs.update(id, { category: category.trim(), updatedAt: Date.now() });
 }
 
 // ---- 写真（PDFへの注釈） ----
