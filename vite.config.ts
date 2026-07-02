@@ -9,6 +9,10 @@ declare const process: { env: Record<string, string | undefined> };
 const APP_VERSION = process.env.npm_package_version ?? '0.0.0';
 const BUILD_TIME = new Date().toISOString();
 
+// TEMP（原因調査）: Safari固有エラーの発生箇所を特定するため、一時的に非圧縮＋sourcemap。
+// 原因特定後に false へ戻す。
+const DEBUG_UNMIN = true;
+
 // 完全オフラインSPA。外部通信ゼロが最優先のため runtimeCaching は一切定義せず
 // （外部オリジンへ取りに行く経路そのものを作らない）、全アセットを precache する。
 export default defineConfig({
@@ -71,7 +75,8 @@ export default defineConfig({
   },
   build: {
     target: 'es2021',
-    sourcemap: false,
+    minify: DEBUG_UNMIN ? false : 'esbuild',
+    sourcemap: DEBUG_UNMIN,
     // pdf.js は大きいのでチャンク警告閾値を上げておく（挙動には影響しない）
     chunkSizeWarningLimit: 4096,
   },

@@ -7,6 +7,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.3',
+    date: '2026-07-02',
+    changes: ['不具合の原因調査のため、詳細なエラー表示を一時的に有効化'],
+  },
+  {
     version: '1.2.2',
     date: '2026-07-02',
     changes: [
