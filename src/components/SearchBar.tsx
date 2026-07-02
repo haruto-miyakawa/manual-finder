@@ -1,4 +1,6 @@
 // 上部固定の検索バー。入力はデバウンスして親(App)へ。検索中はスピナー表示。
+import { SearchIcon } from './icons';
+
 interface Props {
   value: string;
   onChange: (v: string) => void;
@@ -9,7 +11,7 @@ export function SearchBar({ value, onChange, searching }: Props) {
   return (
     <div className="searchBar">
       <span className="searchIcon" aria-hidden>
-        🔍
+        <SearchIcon size={22} />
       </span>
       <input
         className="searchInput"

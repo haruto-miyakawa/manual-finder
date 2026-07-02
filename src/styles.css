@@ -30,6 +30,12 @@ body,
   height: 100%;
   margin: 0;
 }
+/* アプリ自体は画面ぴったりに固定し、スクロールは中の .appMain だけに閉じ込める
+   （iOSでツールバー伸縮に伴い下タブが浮く/沈む問題を防ぐ）。 */
+html,
+body {
+  overflow: hidden;
+}
 body {
   background: var(--bg);
   color: var(--fg);
@@ -97,7 +103,8 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh; /* 古いブラウザ用フォールバック */
+  height: 100dvh; /* 表示中ビューポートちょうど＝下タブが常に画面最下部に接する */
 }
 .appHeader {
   position: sticky;
@@ -114,7 +121,10 @@ body {
   margin-bottom: 8px;
 }
 .appLogo {
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+  flex: 0 0 auto;
 }
 .appName {
   font-weight: 800;
@@ -167,7 +177,10 @@ body {
   min-height: 52px;
 }
 .searchIcon {
-  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+  flex: 0 0 auto;
 }
 .searchInput {
   flex: 1;
@@ -288,7 +301,9 @@ body {
   color: var(--accent);
 }
 .tabIcon {
-  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ---- セクション ---- */
@@ -1406,8 +1421,19 @@ a.btn {
   background: #12324b;
 }
 .segTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 16px;
   font-weight: 700;
+}
+.segBtn.on .segTitle {
+  color: var(--accent);
+}
+.encLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .segSub {
   font-size: 12px;
@@ -1448,12 +1474,17 @@ a.btn {
 
 /* ---- 狭い画面（スマホ）調整 ---- */
 @media (max-width: 430px) {
-  /* ヘッダーの詰まり緩和: 使用量テキストは省略し、バーだけ残す（数値はⓘ内で確認可） */
-  .storageText {
+  /* ヘッダーは狭いので、細いバーと補足(・保存保護等)は省略し、
+     使用量の数値だけは必ず出す（容量が見えるように）。設定タブ側はフル表示のまま。 */
+  .appTitleRow .storageTrack,
+  .appTitleRow .storageSuffix {
     display: none;
   }
-  .storageBar {
+  .appTitleRow .storageBar {
     min-width: 0;
+  }
+  .appTitleRow .storageText {
+    font-size: 12px;
   }
   .appName {
     min-width: 0;

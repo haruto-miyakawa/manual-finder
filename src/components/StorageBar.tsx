@@ -30,9 +30,11 @@ export function StorageBar({ refreshKey }: { refreshKey?: number }) {
         <div className="storageFill" style={{ width: `${Math.min(100, ratio * 100).toFixed(1)}%` }} />
       </div>
       <span className="storageText">
-        {fmt(info.usage)} / {fmt(info.quota)}
-        {info.persisted ? ' ・保存保護' : ''}
-        {warn ? ' ・容量注意' : ''}
+        <span className="storageNums">
+          {fmt(info.usage)} / {fmt(info.quota)}
+        </span>
+        {info.persisted ? <span className="storageSuffix"> ・保存保護</span> : null}
+        {warn ? <span className="storageSuffix"> ・容量注意</span> : null}
       </span>
     </div>
   );

@@ -11,6 +11,7 @@ import {
   BackupEncryptedError,
 } from '../backup/backup';
 import { rebuildSearchIndex, markBackupDone } from '../db/repo';
+import { LockIcon, ExportIcon, ImportIcon, RebuildIcon } from './icons';
 
 interface Props {
   onChanged: () => void;
@@ -124,7 +125,10 @@ export function BackupPanel({ onChanged }: Props) {
             disabled={!canEncrypt}
             onChange={(e) => setEncrypt(e.target.checked)}
           />
-          <span>🔒 パスワードで暗号化する（推奨）</span>
+          <span className="encLabel">
+            <LockIcon size={18} />
+            パスワードで暗号化する（推奨）
+          </span>
         </label>
         {canEncrypt ? (
           encrypt && (
@@ -144,7 +148,8 @@ export function BackupPanel({ onChanged }: Props) {
         )}
 
         <button className="btn primary big" disabled={busy} onClick={() => void doExport()}>
-          ⬇ エクスポート（1ファイルに保存）
+          <ExportIcon size={20} />
+          エクスポート（1ファイルに保存）
         </button>
       </section>
 
@@ -154,7 +159,8 @@ export function BackupPanel({ onChanged }: Props) {
           バックアップから完全復元します。現在のデータは置き換わります。暗号化ファイルはパスワードを求めます。
         </p>
         <button className="btn big" disabled={busy} onClick={() => importRef.current?.click()}>
-          ⬆ バックアップを選んで復元
+          <ImportIcon size={20} />
+          バックアップを選んで復元
         </button>
         <input
           ref={importRef}
@@ -174,7 +180,8 @@ export function BackupPanel({ onChanged }: Props) {
           検索が効かない/結果がおかしいとき、保存済みPDFのテキストから索引を作り直します。
         </p>
         <button className="btn big" disabled={busy} onClick={() => void doRebuild()}>
-          ↻ 検索索引を再構築
+          <RebuildIcon size={20} />
+          検索索引を再構築
         </button>
       </section>
 

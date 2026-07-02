@@ -1,6 +1,7 @@
 // 設定タブ。PDFの操作モード（タップ/スクロール）などをまとめて変更できる。
 import { useSettings, updateSettings } from '../settings';
 import { StorageBar } from './StorageBar';
+import { TapIcon, ScrollIcon } from './icons';
 
 export function SettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
   const settings = useSettings();
@@ -14,14 +15,20 @@ export function SettingsPanel({ onOpenHelp }: { onOpenHelp: () => void }) {
             className={`segBtn${settings.navMode === 'tap' ? ' on' : ''}`}
             onClick={() => void updateSettings({ navMode: 'tap' })}
           >
-            <span className="segTitle">👆 タップ移動</span>
+            <span className="segTitle">
+              <TapIcon size={20} />
+              タップ移動
+            </span>
             <span className="segSub">画面の左右タップでページ送り。横向きは全画面。</span>
           </button>
           <button
             className={`segBtn${settings.navMode === 'scroll' ? ' on' : ''}`}
             onClick={() => void updateSettings({ navMode: 'scroll' })}
           >
-            <span className="segTitle">📜 スクロール移動</span>
+            <span className="segTitle">
+              <ScrollIcon size={20} />
+              スクロール移動
+            </span>
             <span className="segSub">上下にスクロールして連続で読む。</span>
           </button>
         </div>

@@ -16,6 +16,7 @@ import { ErrorOverlay } from './components/ErrorOverlay';
 import { PdfViewer } from './pdf/PdfViewer';
 import { APP_VERSION } from './version';
 import { useSettings } from './settings';
+import { SearchIcon, LibraryIcon, CampaignIcon, BackupIcon, SettingsIcon } from './components/icons';
 
 type Tab = 'library' | 'campaigns' | 'backup' | 'settings';
 interface ViewerTarget {
@@ -84,7 +85,9 @@ export default function App() {
     <div className="app">
       <header className="appHeader">
         <div className="appTitleRow">
-          <span className="appLogo">🔍</span>
+          <span className="appLogo">
+            <SearchIcon size={20} />
+          </span>
           <span className="appName">マニュアル検索</span>
           <span className="appVer">v{APP_VERSION}</span>
           <StorageBar refreshKey={storageKey} />
@@ -131,19 +134,27 @@ export default function App() {
       {!showResults && (
         <nav className="tabBar">
           <button className={`tabBtn${tab === 'library' ? ' on' : ''}`} onClick={() => setTab('library')}>
-            <span className="tabIcon">📚</span>
+            <span className="tabIcon">
+              <LibraryIcon size={23} />
+            </span>
             ライブラリ
           </button>
           <button className={`tabBtn${tab === 'campaigns' ? ' on' : ''}`} onClick={() => setTab('campaigns')}>
-            <span className="tabIcon">🗓</span>
+            <span className="tabIcon">
+              <CampaignIcon size={23} />
+            </span>
             施策
           </button>
           <button className={`tabBtn${tab === 'backup' ? ' on' : ''}`} onClick={() => setTab('backup')}>
-            <span className="tabIcon">📦</span>
+            <span className="tabIcon">
+              <BackupIcon size={23} />
+            </span>
             バックアップ
           </button>
           <button className={`tabBtn${tab === 'settings' ? ' on' : ''}`} onClick={() => setTab('settings')}>
-            <span className="tabIcon">⚙️</span>
+            <span className="tabIcon">
+              <SettingsIcon size={23} />
+            </span>
             設定
           </button>
         </nav>
