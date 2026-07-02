@@ -6,7 +6,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { TextLayer, Util } from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import { loadPdfDocument } from './pdfSetup';
-import { getPdfBytes } from '../db/repo';
+import { getPdfBytes, getPageNote, setPageNote } from '../db/repo';
+import { db } from '../db/db';
 import { normalize, querySegments } from '../search/tokenizer';
 import type { NavMode } from '../settings';
 
@@ -48,8 +49,11 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageInput, setPageInput] = useState(String(initialPage));
-  const [landscape, setLandscape] = useState(false);
   const [chrome, setChrome] = useState(true);
+  const [hintVisible, setHintVisible] = useState(true);
+  const [noteText, setNoteText] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [notedPages, setNotedPages] = useState<Set<number>>(new Set());
   // scroll モード用: 明示ジャンプ（スライダー/前後/リンク）でスクロールさせるトークン
   const [jump, setJump] = useState({ page: initialPage, token: 0 });
 
@@ -58,20 +62,18 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const immersive = navMode === 'tap' && !chrome;
   const segs = querySegments(highlightQuery);
 
-  // 向き検出
+  // tap=没入(縦横とも・下部バーは出さない) / scroll=バー表示
   useEffect(() => {
-    const mq = window.matchMedia('(orientation: landscape)');
-    const apply = () => setLandscape(mq.matches);
-    apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, []);
+    setChrome(scrollMode);
+  }, [scrollMode]);
 
-  // モード/向きでバー表示の初期状態を決める（tap: 横=没入 / 縦=バー、scroll: 常にバー）
+  // 没入時のヒントは開いてから約3秒で自動的に消す
   useEffect(() => {
-    if (scrollMode) setChrome(true);
-    else setChrome(!landscape);
-  }, [scrollMode, landscape]);
+    if (loading || !immersive) return;
+    setHintVisible(true);
+    const t = setTimeout(() => setHintVisible(false), 3000);
+    return () => clearTimeout(t);
+  }, [immersive, loading]);
 
   // ---- ドキュメント読み込み ----
   useEffect(() => {
@@ -130,6 +132,30 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     setPageNum(p);
     setPageInput(String(p));
   }, []);
+
+  // ---- ページメモ ----
+  useEffect(() => {
+    let alive = true;
+    getPageNote(pdfId, pageNum).then((t) => {
+      if (alive) setNoteText(t);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [pdfId, pageNum]);
+  const reloadNoted = useCallback(async () => {
+    const rows = await db.pageNotes.where('pdfId').equals(pdfId).toArray();
+    setNotedPages(new Set(rows.map((r) => r.page)));
+  }, [pdfId]);
+  useEffect(() => {
+    void reloadNoted();
+  }, [reloadNoted]);
+  const saveNote = useCallback(async () => {
+    await setPageNote(pdfId, pageNum, noteText);
+    await reloadNoted();
+    setNoteOpen(false);
+  }, [pdfId, pageNum, noteText, reloadNoted]);
+  const hasNote = notedPages.has(pageNum) || noteText.trim() !== '';
 
   // ---- 単ページ描画（tapモード） ----
   const renderPage = useCallback(async () => {
@@ -208,7 +234,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
     };
-  }, [scrollMode, chrome, landscape, loading, error]);
+  }, [scrollMode, chrome, loading, error]);
 
   // ---- ズーム ----
   const zoomIn = () => setZoom((z) => clampZoom(z * 1.25));
@@ -296,6 +322,13 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
           <div className="viewerTitle" title={title}>
             {title}
           </div>
+          <button
+            className={`memoBtn${hasNote ? ' noted' : ''}`}
+            onClick={() => setNoteOpen(true)}
+            aria-label="このページのメモ"
+          >
+            📝
+          </button>
           <div className="viewerZoom">
             <button className="zoomBtn" onClick={zoomOut} aria-label="縮小">
               −
@@ -325,6 +358,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
           zoom={zoom}
           segs={segs}
           jump={jump}
+          notedPages={notedPages}
           onPageChange={onScrollPageChange}
           onGoto={goToPage}
         />
@@ -382,8 +416,32 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
           </button>
         </footer>
       ) : (
-        <div className="viewerHint" aria-hidden>
-          ▲ 下から引き上げて操作　·　左右タップでページ送り　·　{pageNum} / {numPages}
+        hintVisible && (
+          <div className="viewerHint" aria-hidden>
+            ▲ 下から引き上げて操作　·　左右タップでページ送り　·　{pageNum} / {numPages}
+          </div>
+        )
+      )}
+
+      {noteOpen && (
+        <div className="overlay" onClick={() => void saveNote()}>
+          <div className="drawer" onClick={(e) => e.stopPropagation()}>
+            <header className="drawerHead">
+              <div className="drawerTitle">P.{pageNum} のメモ</div>
+              <button className="btn primary" onClick={() => void saveNote()}>
+                保存
+              </button>
+            </header>
+            <div className="drawerBody">
+              <textarea
+                className="textArea"
+                rows={6}
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder={`${pageNum}ページ目のメモ`}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -397,6 +455,7 @@ function ScrollPdf({
   zoom,
   segs,
   jump,
+  notedPages,
   onPageChange,
   onGoto,
 }: {
@@ -405,6 +464,7 @@ function ScrollPdf({
   zoom: number;
   segs: string[];
   jump: { page: number; token: number };
+  notedPages: Set<number>;
   onPageChange: (p: number) => void;
   onGoto: (p: number) => void;
 }) {
@@ -586,6 +646,23 @@ function ScrollPdf({
       container.scrollTo({ top: slot.offsetTop - 6 });
     }
   }, [jump]);
+
+  // ページメモのバッジ表示
+  useEffect(() => {
+    slots.current.forEach((slot, n) => {
+      let badge = slot.querySelector('.pageNoteBadge') as HTMLElement | null;
+      if (notedPages.has(n)) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'pageNoteBadge';
+          badge.textContent = '📝';
+          slot.appendChild(badge);
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    });
+  }, [notedPages]);
 
   return (
     <div className="scrollPages" ref={containerRef}>

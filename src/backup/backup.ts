@@ -2,7 +2,7 @@
 // PDF/写真は STORE(無圧縮=level0、既に圧縮済のため高速)、JSONは軽く圧縮。
 // 任意でパスワード暗号化（WebCrypto: PBKDF2→AES-GCM）。外部通信・追加依存なし。
 import { zip, unzip, type AsyncZippable, type Unzipped } from 'fflate';
-import { db } from '../db/db';
+import { db, type PageNoteRow } from '../db/db';
 import type { PdfMeta, PhotoRow, Campaign, PageRow, PdfBlobRow } from '../types';
 import { rebuildFromPages, clearIndex } from '../search/searchIndex';
 
@@ -17,6 +17,7 @@ interface Manifest {
   pdfs: PdfMeta[];
   photos: Array<Omit<PhotoRow, 'blob'>>;
   campaigns: Campaign[];
+  pageNotes: PageNoteRow[];
 }
 
 function zipAsync(data: AsyncZippable): Promise<Uint8Array> {
@@ -105,12 +106,13 @@ export async function exportAll(
   passphrase?: string,
 ): Promise<Blob> {
   onProgress?.({ phase: 'collect', detail: 'データ収集中' });
-  const [pdfs, blobs, pages, photos, campaigns] = await Promise.all([
+  const [pdfs, blobs, pages, photos, campaigns, pageNotes] = await Promise.all([
     db.pdfs.toArray(),
     db.blobs.toArray(),
     db.pages.toArray(),
     db.photos.toArray(),
     db.campaigns.toArray(),
+    db.pageNotes.toArray(),
   ]);
 
   const blobById = new Map<string, PdfBlobRow>(blobs.map((b) => [b.id, b]));
@@ -128,6 +130,7 @@ export async function exportAll(
     pdfs,
     photos: photos.map(({ blob: _blob, ...rest }) => rest),
     campaigns,
+    pageNotes,
   };
 
   const zippable: AsyncZippable = {};
@@ -206,7 +209,7 @@ export async function importAllReplace(
   onProgress?.({ phase: 'write', detail: '書き込み中' });
   await db.transaction(
     'rw',
-    [db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, db.thumbs],
+    [db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, db.thumbs, db.pageNotes],
     async () => {
       await Promise.all([
         db.pdfs.clear(),
@@ -215,6 +218,7 @@ export async function importAllReplace(
         db.photos.clear(),
         db.campaigns.clear(),
         db.thumbs.clear(),
+        db.pageNotes.clear(),
       ]);
 
       for (const meta of manifest.pdfs) {
@@ -251,6 +255,7 @@ export async function importAllReplace(
       }
 
       for (const c of manifest.campaigns) await db.campaigns.put(c);
+      for (const nrow of manifest.pageNotes ?? []) await db.pageNotes.put(nrow);
     },
   );
 

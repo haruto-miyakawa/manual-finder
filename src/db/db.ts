@@ -7,6 +7,14 @@ export interface ThumbRow {
   blob: Blob; // 1ページ目のサムネイル(JPEG)
 }
 
+export interface PageNoteRow {
+  id: string; // `${pdfId}#${page}`
+  pdfId: string;
+  page: number;
+  text: string;
+  updatedAt: number;
+}
+
 export class ManualDB extends Dexie {
   pdfs!: Table<PdfMeta, string>;
   blobs!: Table<PdfBlobRow, string>;
@@ -15,6 +23,7 @@ export class ManualDB extends Dexie {
   campaigns!: Table<Campaign, string>;
   meta!: Table<MetaRow, string>;
   thumbs!: Table<ThumbRow, string>;
+  pageNotes!: Table<PageNoteRow, string>;
 
   constructor() {
     super('manual-finder');
@@ -34,6 +43,10 @@ export class ManualDB extends Dexie {
     // v2: サムネイル用ストアを追加（既存データはそのまま引き継がれる）
     this.version(2).stores({
       thumbs: 'id',
+    });
+    // v3: ページ単位メモ
+    this.version(3).stores({
+      pageNotes: 'id, pdfId',
     });
   }
 }

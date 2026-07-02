@@ -83,15 +83,20 @@ export async function importPdfFile(
 /** PDFを完全削除（メタ・バイト・ページ・写真・索引・紐付け施策の解除）。 */
 export async function deletePdf(id: string): Promise<void> {
   const pageRows = await db.pages.where('pdfId').equals(id).primaryKeys();
-  await db.transaction('rw', [db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, db.thumbs], async () => {
-    await db.pdfs.delete(id);
-    await db.blobs.delete(id);
-    await db.pages.where('pdfId').equals(id).delete();
-    await db.photos.where('pdfId').equals(id).delete();
-    await db.thumbs.delete(id);
-    // 紐付け施策は PDF参照を外す（施策自体は残す）
-    await db.campaigns.where('pdfId').equals(id).modify({ pdfId: null });
-  });
+  await db.transaction(
+    'rw',
+    [db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, db.thumbs, db.pageNotes],
+    async () => {
+      await db.pdfs.delete(id);
+      await db.blobs.delete(id);
+      await db.pages.where('pdfId').equals(id).delete();
+      await db.photos.where('pdfId').equals(id).delete();
+      await db.thumbs.delete(id);
+      await db.pageNotes.where('pdfId').equals(id).delete();
+      // 紐付け施策は PDF参照を外す（施策自体は残す）
+      await db.campaigns.where('pdfId').equals(id).modify({ pdfId: null });
+    },
+  );
   removeDocIds(pageRows as string[]);
   await persistNow();
 }
@@ -118,6 +123,18 @@ export async function setTags(id: string, tags: string[]): Promise<void> {
 }
 export async function setCategory(id: string, category: string): Promise<void> {
   await db.pdfs.update(id, { category: category.trim(), updatedAt: Date.now() });
+}
+
+// ---- ページ単位メモ ----
+export async function getPageNote(pdfId: string, page: number): Promise<string> {
+  const row = await db.pageNotes.get(`${pdfId}#${page}`);
+  return row?.text ?? '';
+}
+export async function setPageNote(pdfId: string, page: number, text: string): Promise<void> {
+  const id = `${pdfId}#${page}`;
+  const t = text.trim();
+  if (!t) await db.pageNotes.delete(id);
+  else await db.pageNotes.put({ id, pdfId, page, text: t, updatedAt: Date.now() });
 }
 
 // ---- 写真（PDFへの注釈） ----

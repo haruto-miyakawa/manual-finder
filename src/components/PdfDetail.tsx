@@ -27,6 +27,11 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
     [pdfId],
     [],
   );
+  const pageNotes = useLiveQuery(
+    () => db.pageNotes.where('pdfId').equals(pdfId).sortBy('page'),
+    [pdfId],
+    [],
+  );
   const photoInput = useRef<HTMLInputElement | null>(null);
   const [title, setTitleLocal] = useState('');
   const [memo, setMemoLocal] = useState('');
@@ -161,6 +166,22 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
             onBlur={() => void setMemo(pdfId, memo)}
             placeholder="このマニュアルのメモ"
           />
+
+          <label className="fieldLabel">ページメモ（{pageNotes.length}）</label>
+          {pageNotes.length === 0 ? (
+            <div className="hint">ビューアで各ページの「📝」から、ページごとにメモを残せます。</div>
+          ) : (
+            <ul className="pageNoteList">
+              {pageNotes.map((n) => (
+                <li key={n.id}>
+                  <button className="pageNoteItem" onClick={() => onOpenViewer(pdfId, n.page, '')}>
+                    <span className="pageNoteP">P.{n.page}</span>
+                    <span className="pageNoteText">{n.text}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
 
           <label className="fieldLabel">写真（{photos.length}）</label>
           <div className="photoGrid">
