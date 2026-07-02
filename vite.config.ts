@@ -2,11 +2,15 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Node の process を最小宣言（@types/node を足さずに型を通す。ビルド時のみ使用）
+declare const process: { env: Record<string, string | undefined> };
+
 // 完全オフラインSPA。外部通信ゼロが最優先のため runtimeCaching は一切定義せず
 // （外部オリジンへ取りに行く経路そのものを作らない）、全アセットを precache する。
 export default defineConfig({
-  // 既定 base '/'。pdf.js の cMap/font パスは実行時に import.meta.env.BASE_URL から解決するので
-  // サブパス配信でも壊れない（src/pdf/pdfSetup.ts 参照）。
+  // 既定 base '/'。GitHub Pages 等のサブパス配信では VITE_BASE=/manual-finder/ を渡す。
+  // pdf.js の cMap/font パスは実行時に import.meta.env.BASE_URL から解決するのでサブパスでも壊れない。
+  base: process.env.VITE_BASE ?? '/',
   plugins: [
     react(),
     VitePWA({
