@@ -83,3 +83,70 @@ def(Map.prototype, 'getOrInsertComputed', getOrInsertComputed);
 def(Map.prototype, 'getOrInsert', getOrInsert);
 def(WeakMap.prototype, 'getOrInsertComputed', getOrInsertComputed);
 def(WeakMap.prototype, 'getOrInsert', getOrInsert);
+
+// ---- Promise.withResolvers（Safari 17.4+）----
+// pdf.js v6 が多用。古いiOS Safariに無いと「PDF取り込み」でエラーになるため補う。
+def(Promise, 'withResolvers', function withResolvers(this: PromiseConstructor) {
+  let resolve!: (v?: unknown) => void;
+  let reject!: (e?: unknown) => void;
+  const Ctor = (typeof this === 'function' ? this : Promise) as PromiseConstructor;
+  const promise = new Ctor((res: (v?: unknown) => void, rej: (e?: unknown) => void) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+});
+
+// ---- Object.hasOwn（Safari 15.4+）----
+def(Object, 'hasOwn', function hasOwn(o: object, p: PropertyKey) {
+  return Object.prototype.hasOwnProperty.call(o, p);
+});
+
+// ---- Array.prototype.findLast / findLastIndex（Safari 15.4+）----
+def(Array.prototype, 'findLast', function findLast(this: any[], cb: (v: any, i: number, a: any[]) => boolean, thisArg?: any) {
+  for (let i = this.length - 1; i >= 0; i--) if (cb.call(thisArg, this[i], i, this)) return this[i];
+  return undefined;
+});
+def(Array.prototype, 'findLastIndex', function findLastIndex(this: any[], cb: (v: any, i: number, a: any[]) => boolean, thisArg?: any) {
+  for (let i = this.length - 1; i >= 0; i--) if (cb.call(thisArg, this[i], i, this)) return i;
+  return -1;
+});
+
+// ---- structuredClone（Safari 15.4+）----
+// 未実装環境向けの簡易ディープクローン（pdf.js の一般的な用途をカバー。transfer は無視）。
+if (typeof (globalThis as any).structuredClone !== 'function') {
+  const clone = (val: any, seen: Map<any, any>): any => {
+    if (val === null || typeof val !== 'object') return val;
+    if (seen.has(val)) return seen.get(val);
+    if (val instanceof Date) return new Date(val.getTime());
+    if (val instanceof RegExp) return new RegExp(val.source, val.flags);
+    if (val instanceof ArrayBuffer) return val.slice(0);
+    if (ArrayBuffer.isView(val)) {
+      if (val instanceof DataView) return new DataView(val.buffer.slice(0), val.byteOffset, val.byteLength);
+      return new (val.constructor as any)(val); // 各TypedArrayをコピー
+    }
+    if (Array.isArray(val)) {
+      const a: any[] = [];
+      seen.set(val, a);
+      for (let i = 0; i < val.length; i++) a[i] = clone(val[i], seen);
+      return a;
+    }
+    if (val instanceof Map) {
+      const m = new Map();
+      seen.set(val, m);
+      val.forEach((v, k) => m.set(clone(k, seen), clone(v, seen)));
+      return m;
+    }
+    if (val instanceof Set) {
+      const s = new Set();
+      seen.set(val, s);
+      val.forEach((v) => s.add(clone(v, seen)));
+      return s;
+    }
+    const o: Record<string, any> = {};
+    seen.set(val, o);
+    for (const k of Object.keys(val)) o[k] = clone((val as any)[k], seen);
+    return o;
+  };
+  (globalThis as any).structuredClone = (v: any) => clone(v, new Map());
+}
