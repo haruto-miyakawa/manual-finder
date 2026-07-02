@@ -2,6 +2,11 @@
 import Dexie, { type Table } from 'dexie';
 import type { PdfMeta, PdfBlobRow, PageRow, PhotoRow, Campaign, MetaRow } from '../types';
 
+export interface ThumbRow {
+  id: string; // = PdfMeta.id
+  blob: Blob; // 1ページ目のサムネイル(JPEG)
+}
+
 export class ManualDB extends Dexie {
   pdfs!: Table<PdfMeta, string>;
   blobs!: Table<PdfBlobRow, string>;
@@ -9,6 +14,7 @@ export class ManualDB extends Dexie {
   photos!: Table<PhotoRow, string>;
   campaigns!: Table<Campaign, string>;
   meta!: Table<MetaRow, string>;
+  thumbs!: Table<ThumbRow, string>;
 
   constructor() {
     super('manual-finder');
@@ -24,6 +30,10 @@ export class ManualDB extends Dexie {
       photos: 'id, pdfId, createdAt',
       campaigns: 'id, deadline, pdfId',
       meta: 'key',
+    });
+    // v2: サムネイル用ストアを追加（既存データはそのまま引き継がれる）
+    this.version(2).stores({
+      thumbs: 'id',
     });
   }
 }

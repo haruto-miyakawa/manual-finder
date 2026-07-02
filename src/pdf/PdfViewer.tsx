@@ -1,17 +1,23 @@
-// 自作PDFビューア（pdfjs-dist直叩き）。1ページずつ表示・ページ送り・ズーム(ボタン/ダブルタップ/ピンチ)・
-// 検索語ハイライト・ページジャンプ。外部通信なし。
+// 自作PDFビューア（pdfjs-dist直叩き）。
+//  - 操作モード: tap=左右タップでページ送り（縦横どちらでも・横は全画面）/ scroll=連続スクロール
+//  - ズーム(ボタン/ピンチ)、検索語ハイライト、ページジャンプ、PDF内リンク(ページジャンプ注釈)対応
+//  外部通信なし。
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { TextLayer } from 'pdfjs-dist';
+import { TextLayer, Util } from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import { loadPdfDocument } from './pdfSetup';
 import { getPdfBytes } from '../db/repo';
 import { normalize, querySegments } from '../search/tokenizer';
+import type { NavMode } from '../settings';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 interface Props {
   pdfId: string;
   title: string;
   initialPage?: number;
   highlightQuery?: string;
+  navMode: NavMode;
   onClose: () => void;
 }
 
@@ -21,14 +27,20 @@ function escapeHtml(s: string): string {
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 6;
+const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
 
-export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', onClose }: Props) {
+// Util.applyTransform(p, m, pos) は p を破壊的に変換する（戻り値なし）
+const applyTransform = Util.applyTransform as unknown as (p: number[], m: number[], pos?: number) => void;
+
+export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', navMode, onClose }: Props) {
   const docRef = useRef<PDFDocumentProxy | null>(null);
+  const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textLayerRef = useRef<HTMLDivElement | null>(null);
+  const linkLayerRef = useRef<HTMLDivElement | null>(null);
 
   const [numPages, setNumPages] = useState(0);
   const [pageNum, setPageNum] = useState(initialPage);
@@ -36,25 +48,30 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageInput, setPageInput] = useState(String(initialPage));
-  // 横向き＝没入(全画面)モード。chrome=操作バーの表示。
   const [landscape, setLandscape] = useState(false);
   const [chrome, setChrome] = useState(true);
-  const barsVisible = !landscape || chrome;
+  // scroll モード用: 明示ジャンプ（スライダー/前後/リンク）でスクロールさせるトークン
+  const [jump, setJump] = useState({ page: initialPage, token: 0 });
 
+  const scrollMode = navMode === 'scroll';
+  const barsVisible = scrollMode || chrome;
+  const immersive = navMode === 'tap' && !chrome;
   const segs = querySegments(highlightQuery);
 
-  // ---- 画面の向き検出（横＝没入・バー非表示 / 縦＝バー表示） ----
+  // 向き検出
   useEffect(() => {
     const mq = window.matchMedia('(orientation: landscape)');
-    const apply = () => {
-      const ls = mq.matches;
-      setLandscape(ls);
-      setChrome(!ls);
-    };
+    const apply = () => setLandscape(mq.matches);
     apply();
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
   }, []);
+
+  // モード/向きでバー表示の初期状態を決める（tap: 横=没入 / 縦=バー、scroll: 常にバー）
+  useEffect(() => {
+    if (scrollMode) setChrome(true);
+    else setChrome(!landscape);
+  }, [scrollMode, landscape]);
 
   // ---- ドキュメント読み込み ----
   useEffect(() => {
@@ -65,16 +82,18 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
       try {
         const bytes = await getPdfBytes(pdfId);
         if (!bytes) throw new Error('PDFデータが見つかりません。');
-        const doc = await loadPdfDocument(bytes);
+        const d = await loadPdfDocument(bytes);
         if (cancelled) {
-          await doc.loadingTask.destroy();
+          await d.loadingTask.destroy();
           return;
         }
-        docRef.current = doc;
-        setNumPages(doc.numPages);
-        const start = Math.min(Math.max(1, initialPage), doc.numPages);
+        docRef.current = d;
+        setDoc(d);
+        setNumPages(d.numPages);
+        const start = Math.min(Math.max(1, initialPage), d.numPages);
         setPageNum(start);
         setPageInput(String(start));
+        setJump({ page: start, token: 1 });
         setLoading(false);
       } catch (e) {
         if (!cancelled) {
@@ -88,43 +107,57 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
       renderTaskRef.current?.cancel();
       const d = docRef.current;
       docRef.current = null;
+      setDoc(null);
       d?.loadingTask.destroy().catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfId]);
 
-  // ---- ページ描画 ----
+  // ---- ページ移動 ----
+  const goToPage = useCallback(
+    (p: number) => {
+      const clamped = Math.min(Math.max(1, p), numPages || 1);
+      setPageNum(clamped);
+      setPageInput(String(clamped));
+      setJump({ page: clamped, token: Date.now() });
+      if (!scrollMode) scrollRef.current?.scrollTo({ top: 0 });
+    },
+    [numPages, scrollMode],
+  );
+  const prev = useCallback(() => goToPage(pageNum - 1), [goToPage, pageNum]);
+  const next = useCallback(() => goToPage(pageNum + 1), [goToPage, pageNum]);
+  const onScrollPageChange = useCallback((p: number) => {
+    setPageNum(p);
+    setPageInput(String(p));
+  }, []);
+
+  // ---- 単ページ描画（tapモード） ----
   const renderPage = useCallback(async () => {
-    const doc = docRef.current;
+    const d = docRef.current;
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     const textDiv = textLayerRef.current;
+    const linkDiv = linkLayerRef.current;
     const scroll = scrollRef.current;
-    if (!doc || !canvas || !wrap || !textDiv || !scroll) return;
+    if (!d || !canvas || !wrap || !textDiv || !scroll) return;
 
     renderTaskRef.current?.cancel();
-
     let page: PDFPageProxy;
     try {
-      page = await doc.getPage(pageNum);
+      page = await d.getPage(pageNum);
     } catch {
       return;
     }
 
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const base = page.getViewport({ scale: 1 }); // ページの回転も反映済み
-    // 「ページ全体が収まる」フィット: 幅・高さ両方を見て小さい方に合わせる。
-    // これで縦向きページは従来どおり、横向き（ランドスケープ）ページや横画面でも
-    // ページ全体が見える（幅フィットだけだと横向きページが縦にはみ出して下が切れていた）。
+    const base = page.getViewport({ scale: 1 });
     const availW = scroll.clientWidth - 16;
     const availH = scroll.clientHeight - 16;
     const fitW = availW > 0 ? availW / base.width : 1;
     const fitH = availH > 0 ? availH / base.height : fitW;
-    const fitScale = Math.min(fitW, fitH);
-    const effScale = fitScale * zoom;
+    const effScale = Math.min(fitW, fitH) * zoom;
     const viewport = page.getViewport({ scale: effScale });
 
-    // wrap / canvas サイズ設定
     wrap.style.width = `${viewport.width}px`;
     wrap.style.height = `${viewport.height}px`;
     wrap.style.setProperty('--total-scale-factor', String(effScale));
@@ -133,18 +166,15 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     canvas.style.width = `${viewport.width}px`;
     canvas.style.height = `${viewport.height}px`;
 
-    // v6: canvas 要素を渡し、dpr は transform で拡大（canvasContext より推奨）。
-    // canvas.width を毎回設定するので前ページの描画はクリアされる。
     const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined;
     const task = page.render({ canvas, viewport, transform });
     renderTaskRef.current = task;
     try {
       await task.promise;
     } catch {
-      return; // キャンセル等
+      return;
     }
 
-    // テキストレイヤ
     textDiv.innerHTML = '';
     try {
       const textContent = await page.getTextContent();
@@ -153,67 +183,43 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
       const first = highlightSpans(textDiv, segs);
       if (first) first.scrollIntoView({ block: 'center', inline: 'nearest' });
     } catch {
-      /* テキストレイヤ失敗は描画自体は成功しているので無視 */
+      /* ignore */
     }
+    if (linkDiv) await renderLinkLayer(page, viewport, d, linkDiv, goToPage);
     page.cleanup();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageNum, zoom, highlightQuery]);
+  }, [pageNum, zoom, highlightQuery, goToPage]);
 
   useEffect(() => {
-    if (!loading && !error) void renderPage();
-  }, [loading, error, renderPage]);
+    if (!scrollMode && !loading && !error) void renderPage();
+  }, [scrollMode, loading, error, renderPage]);
 
-  // 画面幅変化で再描画（フィット幅維持）
-  useEffect(() => {
-    const onResize = () => {
-      if (!loading && !error) void renderPage();
-    };
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-    };
-  }, [loading, error, renderPage]);
-
-  // バー表示の切替・向き変更で表示領域が変わるので、レイアウト反映後に再フィット
+  // 画面変化・バー表示切替で再フィット（tapモード）
   const renderPageRef = useRef(renderPage);
   renderPageRef.current = renderPage;
   useEffect(() => {
-    if (loading || error) return;
+    if (scrollMode || loading || error) return;
+    const onResize = () => void renderPageRef.current();
     const id = requestAnimationFrame(() => void renderPageRef.current());
-    return () => cancelAnimationFrame(id);
-  }, [chrome, landscape, loading, error]);
-
-  // ---- ページ移動 ----
-  const goToPage = useCallback(
-    (p: number) => {
-      const clamped = Math.min(Math.max(1, p), numPages || 1);
-      setPageNum(clamped);
-      setPageInput(String(clamped));
-      scrollRef.current?.scrollTo({ top: 0 });
-    },
-    [numPages],
-  );
-  const prev = () => goToPage(pageNum - 1);
-  const next = () => goToPage(pageNum + 1);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, [scrollMode, chrome, landscape, loading, error]);
 
   // ---- ズーム ----
-  const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
   const zoomIn = () => setZoom((z) => clampZoom(z * 1.25));
   const zoomOut = () => setZoom((z) => clampZoom(z / 1.25));
   const resetZoom = () => setZoom(1);
 
-  // ジェスチャ: ピンチ(2本)ズーム / 1本タップ(横=左右送り・中央でバー切替 / 縦=ダブルタップズーム) / 下から引き上げでバー表示
-  const lastTapRef = useRef(0);
+  // ---- ジェスチャ ----
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
-  const oneRef = useRef<{ x: number; y: number; t: number; moved: boolean } | null>(null);
+  const oneRef = useRef<{ x: number; y: number; t: number; moved: boolean; target: EventTarget | null } | null>(null);
 
-  const dist = (t: React.TouchList) => {
-    const dx = t[0].clientX - t[1].clientX;
-    const dy = t[0].clientY - t[1].clientY;
-    return Math.hypot(dx, dy);
-  };
+  const dist = (t: React.TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length >= 2) {
@@ -221,7 +227,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
       oneRef.current = null;
     } else if (e.touches.length === 1) {
       const t = e.touches[0];
-      oneRef.current = { x: t.clientX, y: t.clientY, t: Date.now(), moved: false };
+      oneRef.current = { x: t.clientX, y: t.clientY, t: Date.now(), moved: false, target: e.target };
     }
   };
   const onTouchMove = (e: React.TouchEvent) => {
@@ -242,8 +248,8 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const onTouchEnd = (e: React.TouchEvent) => {
     const p = pinchRef.current;
     if (p && e.touches.length < 2 && wrapRef.current) {
-      const ratioStr = wrapRef.current.style.transform.match(/scale\(([\d.]+)\)/);
-      const ratio = ratioStr ? parseFloat(ratioStr[1]) : 1;
+      const m = wrapRef.current.style.transform.match(/scale\(([\d.]+)\)/);
+      const ratio = m ? parseFloat(m[1]) : 1;
       wrapRef.current.style.transform = '';
       pinchRef.current = null;
       oneRef.current = null;
@@ -253,33 +259,19 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     const o = oneRef.current;
     oneRef.current = null;
     if (!o) return;
+    // PDF内リンクのタップはリンク側で処理（ページ送りしない）
+    if ((o.target as HTMLElement)?.closest?.('.pdfLink')) return;
     const endY = e.changedTouches[0]?.clientY ?? o.y;
-    const dt = Date.now() - o.t;
-
-    // 横向き: 画面下から上へ引き上げ → 操作バーを表示
-    if (landscape) {
-      const vh = window.innerHeight;
-      if (o.moved && o.y > vh - 96 && o.y - endY > 40) {
-        setChrome(true);
+    if (navMode === 'tap') {
+      if (o.moved && o.y > window.innerHeight - 96 && o.y - endY > 40) {
+        setChrome(true); // 下から引き上げでバー表示
         return;
       }
-    }
-    if (o.moved || dt >= 400) return; // ドラッグ/長押しはタップ扱いにしない
-
-    if (landscape) {
+      if (o.moved || Date.now() - o.t >= 400) return;
       const w = scrollRef.current?.clientWidth ?? window.innerWidth;
-      if (o.x < w * 0.33) prev(); // 左タップ=前へ
-      else if (o.x > w * 0.67) next(); // 右タップ=次へ
-      else setChrome((c) => !c); // 中央タップ=バー表示切替
-    } else {
-      // 縦向き: ダブルタップでズームトグル
-      const now = Date.now();
-      if (now - lastTapRef.current < 300) {
-        setZoom((z) => (z > 1.05 ? 1 : 2.5));
-        lastTapRef.current = 0;
-      } else {
-        lastTapRef.current = now;
-      }
+      if (o.x < w * 0.33) prev();
+      else if (o.x > w * 0.67) next();
+      else setChrome((c) => !c);
     }
   };
 
@@ -292,11 +284,10 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageNum, numPages]);
+  }, [next, prev, onClose]);
 
   return (
-    <div className={`viewerRoot${landscape && !chrome ? ' immersive' : ''}`}>
+    <div className={`viewerRoot${immersive ? ' immersive' : ''}`}>
       {barsVisible && (
         <header className="viewerBar">
           <button className="btn iconBtn" onClick={onClose} aria-label="閉じる">
@@ -306,33 +297,52 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
             {title}
           </div>
           <div className="viewerZoom">
-            <button className="btn iconBtn" onClick={zoomOut} aria-label="縮小">
+            <button className="zoomBtn" onClick={zoomOut} aria-label="縮小">
               −
             </button>
-            <button className="btn iconBtn" onClick={resetZoom} aria-label="等倍">
+            <button className="zoomBtn zoomPct" onClick={resetZoom} aria-label="等倍">
               {Math.round(zoom * 100)}%
             </button>
-            <button className="btn iconBtn" onClick={zoomIn} aria-label="拡大">
+            <button className="zoomBtn" onClick={zoomIn} aria-label="拡大">
               ＋
             </button>
           </div>
         </header>
       )}
 
-      <div
-        className="viewerScroll"
-        ref={scrollRef}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
-        {loading && <div className="viewerMsg">読み込み中…</div>}
-        {error && <div className="viewerMsg error">エラー: {error}</div>}
-        <div className="viewerPageWrap" ref={wrapRef} style={{ display: loading || error ? 'none' : 'block' }}>
-          <canvas ref={canvasRef} className="viewerCanvas" />
-          <div ref={textLayerRef} className="textLayer" />
+      {loading ? (
+        <div className="viewerScroll">
+          <div className="viewerMsg">読み込み中…</div>
         </div>
-      </div>
+      ) : error ? (
+        <div className="viewerScroll">
+          <div className="viewerMsg error">エラー: {error}</div>
+        </div>
+      ) : scrollMode && doc ? (
+        <ScrollPdf
+          doc={doc}
+          numPages={numPages}
+          zoom={zoom}
+          segs={segs}
+          jump={jump}
+          onPageChange={onScrollPageChange}
+          onGoto={goToPage}
+        />
+      ) : (
+        <div
+          className="viewerScroll"
+          ref={scrollRef}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <div className="viewerPageWrap" ref={wrapRef}>
+            <canvas ref={canvasRef} className="viewerCanvas" />
+            <div ref={textLayerRef} className="textLayer" />
+            <div ref={linkLayerRef} className="linkLayer" />
+          </div>
+        </div>
+      )}
 
       {barsVisible ? (
         <footer className="viewerNav">
@@ -372,15 +382,290 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
           </button>
         </footer>
       ) : (
-        !loading &&
-        !error && (
-          <div className="viewerHint" aria-hidden>
-            ▲ 下から引き上げて操作　·　左右タップでページ送り　·　{pageNum} / {numPages}
-          </div>
-        )
+        <div className="viewerHint" aria-hidden>
+          ▲ 下から引き上げて操作　·　左右タップでページ送り　·　{pageNum} / {numPages}
+        </div>
       )}
     </div>
   );
+}
+
+// ============ スクロールモード（連続表示・仮想化） ============
+function ScrollPdf({
+  doc,
+  numPages,
+  zoom,
+  segs,
+  jump,
+  onPageChange,
+  onGoto,
+}: {
+  doc: PDFDocumentProxy;
+  numPages: number;
+  zoom: number;
+  segs: string[];
+  jump: { page: number; token: number };
+  onPageChange: (p: number) => void;
+  onGoto: (p: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const slots = useRef<Map<number, HTMLDivElement>>(new Map());
+  const renderedZoom = useRef<Map<number, number>>(new Map());
+  const tasks = useRef<Map<number, RenderTask>>(new Map());
+  const [aspect, setAspect] = useState(1.414);
+  const curRef = useRef(0);
+
+  useEffect(() => {
+    let alive = true;
+    doc.getPage(1).then((p) => {
+      if (!alive) return;
+      const v = p.getViewport({ scale: 1 });
+      setAspect(v.height / v.width);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [doc]);
+
+  const renderSlot = useCallback(
+    async (n: number) => {
+      const slot = slots.current.get(n);
+      const container = containerRef.current;
+      if (!slot || !container) return;
+      if (renderedZoom.current.get(n) === zoom) return;
+      let page: PDFPageProxy;
+      try {
+        page = await doc.getPage(n);
+      } catch {
+        return;
+      }
+      const base = page.getViewport({ scale: 1 });
+      const scale = ((container.clientWidth - 16) / base.width) * zoom;
+      const vp = page.getViewport({ scale });
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      let canvas = slot.querySelector('canvas') as HTMLCanvasElement | null;
+      if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.className = 'viewerCanvas';
+        slot.appendChild(canvas);
+      }
+      canvas.width = Math.floor(vp.width * dpr);
+      canvas.height = Math.floor(vp.height * dpr);
+      canvas.style.width = `${vp.width}px`;
+      canvas.style.height = `${vp.height}px`;
+      slot.style.height = `${vp.height}px`;
+      slot.style.setProperty('--total-scale-factor', String(scale));
+      tasks.current.get(n)?.cancel();
+      const t = page.render({ canvas, viewport: vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined });
+      tasks.current.set(n, t);
+      try {
+        await t.promise;
+      } catch {
+        return;
+      }
+      renderedZoom.current.set(n, zoom);
+      let tl = slot.querySelector('.textLayer') as HTMLDivElement | null;
+      if (!tl) {
+        tl = document.createElement('div');
+        tl.className = 'textLayer';
+        slot.appendChild(tl);
+      }
+      tl.innerHTML = '';
+      try {
+        const tc = await page.getTextContent();
+        const layer = new TextLayer({ textContentSource: tc, container: tl, viewport: vp });
+        await layer.render();
+        highlightSpans(tl, segs);
+      } catch {
+        /* ignore */
+      }
+      let ll = slot.querySelector('.linkLayer') as HTMLDivElement | null;
+      if (!ll) {
+        ll = document.createElement('div');
+        ll.className = 'linkLayer';
+        slot.appendChild(ll);
+      }
+      await renderLinkLayer(page, vp, doc, ll, onGoto);
+      page.cleanup();
+    },
+    [doc, zoom, segs, onGoto],
+  );
+
+  const clearSlot = useCallback((n: number) => {
+    const slot = slots.current.get(n);
+    if (!slot) return;
+    tasks.current.get(n)?.cancel();
+    slot.querySelector('canvas')?.remove();
+    slot.querySelector('.textLayer')?.remove();
+    slot.querySelector('.linkLayer')?.remove();
+    renderedZoom.current.delete(n);
+  }, []);
+
+  // 可視ページを描画/非可視を破棄
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const n = Number((e.target as HTMLElement).dataset.page);
+          if (e.isIntersecting) void renderSlot(n);
+          else clearSlot(n);
+        }
+      },
+      { root: container, rootMargin: '120% 0px' },
+    );
+    slots.current.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [renderSlot, clearSlot, numPages]);
+
+  // ズーム/画面変化 → 済みを破棄して可視を再描画
+  const rerenderVisible = useCallback(() => {
+    renderedZoom.current.clear();
+    const container = containerRef.current;
+    if (!container) return;
+    slots.current.forEach((el, n) => {
+      const top = el.offsetTop;
+      const bot = top + el.offsetHeight;
+      if (bot > container.scrollTop - container.clientHeight && top < container.scrollTop + container.clientHeight * 2)
+        void renderSlot(n);
+    });
+  }, [renderSlot]);
+  useEffect(() => {
+    rerenderVisible();
+  }, [zoom, rerenderVisible]);
+  useEffect(() => {
+    const onResize = () => rerenderVisible();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, [rerenderVisible]);
+
+  // スクロールで現在ページを更新（rAFスロットル）
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const mid = container.scrollTop + container.clientHeight / 2;
+        let best = curRef.current || 1;
+        let bestDist = Infinity;
+        slots.current.forEach((el, n) => {
+          const c = el.offsetTop + el.offsetHeight / 2;
+          const dd = Math.abs(c - mid);
+          if (dd < bestDist) {
+            bestDist = dd;
+            best = n;
+          }
+        });
+        if (best !== curRef.current) {
+          curRef.current = best;
+          onPageChange(best);
+        }
+      });
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [onPageChange]);
+
+  // 明示ジャンプ（スライダー/前後/リンク）でスクロール
+  useEffect(() => {
+    const slot = slots.current.get(jump.page);
+    const container = containerRef.current;
+    if (slot && container) {
+      curRef.current = jump.page;
+      container.scrollTo({ top: slot.offsetTop - 6 });
+    }
+  }, [jump]);
+
+  return (
+    <div className="scrollPages" ref={containerRef}>
+      {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
+        <div
+          key={n}
+          className="scrollPage"
+          data-page={n}
+          ref={(el) => {
+            if (el) slots.current.set(n, el);
+            else slots.current.delete(n);
+          }}
+          style={{ height: `calc((100vw - 16px) * ${aspect} / ${1 / zoom})` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** PDF内リンク注釈を描画（内部リンク=ページジャンプ / 外部URL=別タブ）。 */
+async function renderLinkLayer(
+  page: PDFPageProxy,
+  viewport: any,
+  doc: PDFDocumentProxy,
+  container: HTMLElement,
+  goToPage: (p: number) => void,
+): Promise<void> {
+  container.innerHTML = '';
+  let annots: any[];
+  try {
+    annots = await page.getAnnotations({ intent: 'display' });
+  } catch {
+    return;
+  }
+  for (const a of annots) {
+    if (a.subtype !== 'Link') continue;
+    const hasDest = a.dest != null;
+    const url: string | null = a.url ?? null;
+    if (!hasDest && !url) continue;
+    const c1 = [a.rect[0], a.rect[1]];
+    const c2 = [a.rect[2], a.rect[3]];
+    applyTransform(c1, viewport.transform);
+    applyTransform(c2, viewport.transform);
+    const left = Math.min(c1[0], c2[0]);
+    const top = Math.min(c1[1], c2[1]);
+    const width = Math.abs(c2[0] - c1[0]);
+    const height = Math.abs(c2[1] - c1[1]);
+    if (width < 2 || height < 2) continue;
+    if (url) {
+      const link = document.createElement('a');
+      link.className = 'pdfLink';
+      link.style.cssText = `left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      container.appendChild(link);
+    } else {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pdfLink';
+      btn.style.cssText = `left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void (async () => {
+          try {
+            const dest = typeof a.dest === 'string' ? await doc.getDestination(a.dest) : a.dest;
+            const ref = Array.isArray(dest) ? dest[0] : null;
+            if (ref) {
+              const idx = await doc.getPageIndex(ref);
+              goToPage(idx + 1);
+            }
+          } catch {
+            /* ignore */
+          }
+        })();
+      });
+      container.appendChild(btn);
+    }
+  }
 }
 
 /** テキストレイヤ内で検索語を <mark> 強調し、最初の一致 span を返す。 */

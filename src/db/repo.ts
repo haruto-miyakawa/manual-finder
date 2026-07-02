@@ -1,6 +1,7 @@
 // アプリのデータ操作をまとめた層（UIはここだけ呼ぶ）。DB・抽出・検索索引を協調させる。
 import { db, setMeta } from './db';
 import { extractPdfText } from '../pdf/extract';
+import { ensureThumb } from '../pdf/thumb';
 import {
   addPages,
   makeDocId,
@@ -73,6 +74,8 @@ export async function importPdfFile(
   addPages(pageRows);
   await persistNow();
 
+  void ensureThumb(id); // サムネイル生成（非同期・失敗しても取り込みは成功）
+
   onProgress?.({ phase: 'done' });
   return meta;
 }
@@ -80,11 +83,12 @@ export async function importPdfFile(
 /** PDFを完全削除（メタ・バイト・ページ・写真・索引・紐付け施策の解除）。 */
 export async function deletePdf(id: string): Promise<void> {
   const pageRows = await db.pages.where('pdfId').equals(id).primaryKeys();
-  await db.transaction('rw', db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, async () => {
+  await db.transaction('rw', [db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, db.thumbs], async () => {
     await db.pdfs.delete(id);
     await db.blobs.delete(id);
     await db.pages.where('pdfId').equals(id).delete();
     await db.photos.where('pdfId').equals(id).delete();
+    await db.thumbs.delete(id);
     // 紐付け施策は PDF参照を外す（施策自体は残す）
     await db.campaigns.where('pdfId').equals(id).modify({ pdfId: null });
   });

@@ -9,13 +9,15 @@ import { Library } from './components/Library';
 import { PdfDetail } from './components/PdfDetail';
 import { Campaigns } from './components/Campaigns';
 import { BackupPanel } from './components/BackupPanel';
+import { SettingsPanel } from './components/SettingsPanel';
 import { StorageBar } from './components/StorageBar';
 import { HelpModal } from './components/HelpModal';
 import { ErrorOverlay } from './components/ErrorOverlay';
 import { PdfViewer } from './pdf/PdfViewer';
 import { APP_VERSION } from './version';
+import { useSettings } from './settings';
 
-type Tab = 'library' | 'campaigns' | 'backup';
+type Tab = 'library' | 'campaigns' | 'backup' | 'settings';
 interface ViewerTarget {
   pdfId: string;
   page: number;
@@ -36,6 +38,7 @@ export default function App() {
   const [storageKey, setStorageKey] = useState(0);
   const [dismissBanner, setDismissBanner] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const settings = useSettings();
 
   const pdfCount = useLiveQuery(() => db.pdfs.count(), [], 0);
   const lastBackup = useLiveQuery(() => getMeta<number>('lastBackupAt'), [storageKey], undefined);
@@ -120,6 +123,7 @@ export default function App() {
             )}
             {tab === 'campaigns' && <Campaigns onOpenViewer={openViewer} />}
             {tab === 'backup' && <BackupPanel onChanged={() => setStorageKey((k) => k + 1)} />}
+            {tab === 'settings' && <SettingsPanel onOpenHelp={() => setHelpOpen(true)} />}
           </>
         )}
       </main>
@@ -137,6 +141,10 @@ export default function App() {
           <button className={`tabBtn${tab === 'backup' ? ' on' : ''}`} onClick={() => setTab('backup')}>
             <span className="tabIcon">📦</span>
             バックアップ
+          </button>
+          <button className={`tabBtn${tab === 'settings' ? ' on' : ''}`} onClick={() => setTab('settings')}>
+            <span className="tabIcon">⚙️</span>
+            設定
           </button>
         </nav>
       )}
@@ -161,6 +169,7 @@ export default function App() {
           title={viewer.title}
           initialPage={viewer.page}
           highlightQuery={viewer.query}
+          navMode={settings.navMode}
           onClose={() => setViewer(null)}
         />
       )}

@@ -1,8 +1,9 @@
 // PDFライブラリ。お気に入りは最上部に大きめタイル。取り込み・タグ絞り込み・詳細/ビューア導線。
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { importPdfFile, setFavorite, type ImportProgress } from '../db/repo';
+import { ensureThumb } from '../pdf/thumb';
 import type { PdfMeta } from '../types';
 
 interface Props {
@@ -195,15 +196,39 @@ function PdfRow({
         {pdf.favorite ? '★' : '☆'}
       </button>
       <button className="pdfMain" onClick={onOpen}>
-        <span className="pdfTitle">{pdf.title}</span>
-        <span className="pdfMeta">
-          {pdf.pageCount}p{pdf.tags.length > 0 ? ` ・ ${pdf.tags.join(' / ')}` : ''}
-          {!pdf.hasText ? ' ・ テキスト無(検索不可)' : ''}
+        <PdfThumb pdfId={pdf.id} />
+        <span className="pdfInfo">
+          <span className="pdfTitle">{pdf.title}</span>
+          <span className="pdfMeta">
+            {pdf.pageCount}p{pdf.tags.length > 0 ? ` ・ ${pdf.tags.join(' / ')}` : ''}
+            {!pdf.hasText ? ' ・ テキスト無(検索不可)' : ''}
+          </span>
         </span>
       </button>
       <button className="detailBtn" onClick={onDetail} aria-label="詳細">
         ⋯
       </button>
     </li>
+  );
+}
+
+/** PDF 1ページ目のサムネイル。未生成なら生成をトリガーし、できたら表示。 */
+function PdfThumb({ pdfId }: { pdfId: string }) {
+  const thumb = useLiveQuery(() => db.thumbs.get(pdfId), [pdfId]);
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    if (!thumb) {
+      void ensureThumb(pdfId);
+      setUrl('');
+      return;
+    }
+    const u = URL.createObjectURL(thumb.blob);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [thumb, pdfId]);
+  return (
+    <span className="pdfThumb">
+      {url ? <img src={url} alt="" /> : <span className="pdfThumbIcon">📄</span>}
+    </span>
   );
 }

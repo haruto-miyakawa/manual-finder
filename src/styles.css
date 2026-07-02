@@ -441,24 +441,60 @@ body {
 }
 .pdfMain {
   flex: 1;
+  min-width: 0;
   border: 0;
   background: transparent;
   color: var(--fg);
   text-align: left;
-  padding: 12px 6px;
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  min-height: var(--tap);
+}
+.pdfThumb {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 58px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pdfThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pdfThumbIcon {
+  font-size: 22px;
+  opacity: 0.6;
+}
+.pdfInfo {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  cursor: pointer;
-  min-height: var(--tap);
 }
 .pdfTitle {
   font-size: 17px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pdfMeta {
   font-size: 12px;
   color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .starBtn {
   border: 0;
@@ -823,12 +859,26 @@ body {
 }
 .viewerZoom {
   display: flex;
-  gap: 4px;
+  gap: 3px;
+  flex: 0 0 auto;
 }
-.viewerZoom .iconBtn {
-  min-height: 44px;
-  min-width: 44px;
-  font-size: 15px;
+/* 基本100%運用なので控えめに */
+.zoomBtn {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg-dim);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.zoomBtn.zoomPct {
+  min-width: 46px;
+}
+.zoomBtn:active {
+  filter: brightness(1.4);
 }
 .viewerScroll {
   flex: 1;
@@ -1160,6 +1210,81 @@ a.btn {
 }
 .warnText {
   color: var(--warn);
+}
+
+/* ---- スクロールモード（連続表示） ---- */
+.scrollPages {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  background: #05080b;
+  padding: 8px 0 40px;
+}
+.scrollPage {
+  position: relative;
+  margin: 0 auto 10px;
+  width: fit-content;
+  min-width: 40px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- PDF内リンク（ページジャンプ/外部URL） ---- */
+.linkLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+}
+.pdfLink {
+  position: absolute;
+  display: block;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.pdfLink:active {
+  background: rgba(62, 166, 255, 0.28);
+}
+
+/* ---- 設定: セグメント選択 ---- */
+.segmented {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.segBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--fg);
+  border-radius: 12px;
+  min-height: 56px;
+  cursor: pointer;
+}
+.segBtn.on {
+  border-color: var(--accent);
+  background: #12324b;
+}
+.segTitle {
+  font-size: 16px;
+  font-weight: 700;
+}
+.segSub {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.settingStorage {
+  margin: 8px 0 12px;
 }
 
 /* ---- pdf.js テキストレイヤ（透明・重ね・ハイライト） ---- */

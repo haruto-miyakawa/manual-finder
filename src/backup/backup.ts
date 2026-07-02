@@ -206,11 +206,7 @@ export async function importAllReplace(
   onProgress?.({ phase: 'write', detail: '書き込み中' });
   await db.transaction(
     'rw',
-    db.pdfs,
-    db.blobs,
-    db.pages,
-    db.photos,
-    db.campaigns,
+    [db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, db.thumbs],
     async () => {
       await Promise.all([
         db.pdfs.clear(),
@@ -218,6 +214,7 @@ export async function importAllReplace(
         db.pages.clear(),
         db.photos.clear(),
         db.campaigns.clear(),
+        db.thumbs.clear(),
       ]);
 
       for (const meta of manifest.pdfs) {
