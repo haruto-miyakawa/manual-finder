@@ -179,7 +179,6 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
               ref={photoInput}
               type="file"
               accept="image/*"
-              capture="environment"
               multiple
               hidden
               onChange={(e) => void onAddPhotos(e.target.files)}

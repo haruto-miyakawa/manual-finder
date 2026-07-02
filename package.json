@@ -1,7 +1,7 @@
 {
   "name": "manual-finder",
   "private": true,
-  "version": "1.2.8",
+  "version": "1.2.9",
   "type": "module",
   "description": "iPad専用・完全オフラインのPDFマニュアル検索PWA（外部通信ゼロ）",
   "license": "MIT",

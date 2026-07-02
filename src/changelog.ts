@@ -7,6 +7,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.9',
+    date: '2026-07-03',
+    changes: [
+      '写真の追加を改善: カメラだけでなく「写真ライブラリ／ファイル」からも選べるように',
+    ],
+  },
+  {
     version: '1.2.8',
     date: '2026-07-03',
     changes: [
