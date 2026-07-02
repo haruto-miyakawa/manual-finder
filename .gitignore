@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vite
+node_modules/.tmp
+
+# 生成物（ビルド前スクリプトで node_modules から再生成される）
+public/pdfjs/
+public/icons/
+
+# 開発サーバ等のログ
+*.log

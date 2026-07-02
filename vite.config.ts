@@ -1,0 +1,66 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
+
+// 完全オフラインSPA。外部通信ゼロが最優先のため runtimeCaching は一切定義せず
+// （外部オリジンへ取りに行く経路そのものを作らない）、全アセットを precache する。
+export default defineConfig({
+  // 既定 base '/'。pdf.js の cMap/font パスは実行時に import.meta.env.BASE_URL から解決するので
+  // サブパス配信でも壊れない（src/pdf/pdfSetup.ts 参照）。
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      // 開発時もSWを有効化してオフライン動作を早期検証できるようにする
+      devOptions: { enabled: false },
+      includeAssets: [
+        'icons/apple-touch-icon-180.png',
+        'icons/icon-192.png',
+        'icons/icon-512.png',
+        'icons/maskable-512.png',
+      ],
+      manifest: {
+        name: 'マニュアル検索',
+        short_name: 'マニュアル',
+        description: 'PDFマニュアルをとっさに引く・完全オフライン・外部通信ゼロ',
+        lang: 'ja',
+        dir: 'ltr',
+        start_url: '.',
+        scope: '.',
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#0b0f14',
+        theme_color: '#0b0f14',
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        // pdf.js worker / cmaps(.bcmap) / standard_fonts / アイコン をすべて precache し
+        // 機内モードでもPDF描画まで完全動作させる。
+        globPatterns: [
+          '**/*.{js,mjs,css,html,ico,png,svg,webmanifest,bcmap,pfb,ttf,otf,cff,wasm,json}',
+        ],
+        // pdf.worker が既定上限(2MiB)を超えても precache から漏れないよう引き上げ
+        maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        // 外部オリジンのランタイムキャッシュは定義しない（＝外部取得経路なし）
+        navigateFallback: 'index.html',
+      },
+    }),
+  ],
+  worker: {
+    format: 'es',
+  },
+  build: {
+    target: 'es2021',
+    sourcemap: false,
+    // pdf.js は大きいのでチャンク警告閾値を上げておく（挙動には影響しない）
+    chunkSizeWarningLimit: 4096,
+  },
+});

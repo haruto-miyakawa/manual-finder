@@ -1,0 +1,67 @@
+// アプリ全体のデータ型。永続化(Dexie)・エクスポート(zip)・UI で共有する。
+
+/** マニュアルPDFのメタデータ。メモ(memo)は仕様C「PDF単位の注釈」としてここに持つ。 */
+export interface PdfMeta {
+  id: string; // 例: "pdf_<timestamp>_<rand>"
+  title: string; // 表示名（既定はファイル名から拡張子除去）
+  fileName: string; // 取り込み元ファイル名
+  pageCount: number;
+  byteSize: number; // PDFバイト長
+  hasText: boolean; // テキストレイヤ有無（スキャンPDF検出用）
+  favorite: boolean;
+  tags: string[];
+  memo: string; // テキストメモ
+  createdAt: number; // 取り込み時刻(ms)
+  updatedAt: number;
+}
+
+/** PDFの生バイト（別テーブルに分離してメタ読み込みを軽くする）。 */
+export interface PdfBlobRow {
+  id: string; // = PdfMeta.id
+  blob: Blob; // application/pdf
+}
+
+/** ページ本文（スニペット表示・索引再構築用）。id = `${pdfId}#${page}` */
+export interface PageRow {
+  id: string;
+  pdfId: string;
+  page: number; // 1始まり
+  text: string; // 原文（正規化前）
+}
+
+/** PDFに紐づく写真注釈。 */
+export interface PhotoRow {
+  id: string; // "photo_..."
+  pdfId: string;
+  blob: Blob;
+  name: string;
+  type: string; // MIME
+  createdAt: number;
+}
+
+/** 施策（締切つき・PDF 1つに紐付け）。日付は "YYYY-MM-DD"。 */
+export interface Campaign {
+  id: string; // "camp_..."
+  name: string;
+  startDate?: string; // 任意
+  deadline: string; // 必須 "YYYY-MM-DD"
+  memo: string;
+  pdfId: string | null; // 紐付けPDF（1つ／未設定可）
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** meta テーブルの汎用キー値（検索インデックスJSON・設定など）。 */
+export interface MetaRow {
+  key: string;
+  value: unknown;
+}
+
+/** 検索ヒット（ページ単位）。 */
+export interface SearchHit {
+  pdfId: string;
+  page: number;
+  title: string;
+  snippetHtml: string; // 一致語を <mark> で強調済みHTML（サニタイズ済みテキストのみ）
+  score: number;
+}
