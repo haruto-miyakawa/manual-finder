@@ -2,6 +2,11 @@
 // どうしても専門用語が要る箇所は <Term> で注釈（タップで小さな説明が開く）。
 import { useState } from 'react';
 import { APP_VERSION, BUILD_LABEL } from '../version';
+import { ChangelogModal } from './ChangelogModal';
+
+// お問い合わせ先（Googleフォーム）。メアドは公開せず、送信内容はフォーム作成者のGmailに通知される。
+// これは外部リンクで、ボタンをタップしたときだけ別タブで開く（アプリの自動外部通信は無し）。
+const CONTACT_FORM_URL = 'https://forms.gle/7dgpxocvz7hHvWFG9';
 
 /** 専門用語＋タップで開く注釈。点線の下線＋ⓘで「押せる」ことを示す。 */
 function Term({ children, note }: { children: React.ReactNode; note: string }) {
@@ -20,8 +25,10 @@ function Term({ children, note }: { children: React.ReactNode; note: string }) {
 }
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
+  const [showLog, setShowLog] = useState(false);
   return (
-    <div className="overlay" onClick={onClose}>
+    <>
+      <div className="overlay" onClick={onClose}>
       <div className="drawer help" onClick={(e) => e.stopPropagation()}>
         <header className="drawerHead">
           <div className="drawerTitle">ⓘ 使い方 と 注意</div>
@@ -37,6 +44,15 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             </span>
             <span className="verBuild">ビルド {BUILD_LABEL}</span>
             <span className="verNote">※この「ビルド」は更新のたびに変わります。数字が新しくなっていれば更新済みです。</span>
+          </div>
+
+          <div className="helpActions">
+            <a className="btn" href={CONTACT_FORM_URL} target="_blank" rel="noopener noreferrer">
+              📧 お問い合わせ
+            </a>
+            <button className="btn" onClick={() => setShowLog(true)}>
+              📝 変更ログ
+            </button>
           </div>
 
           <h3 className="helpH">このアプリは？</h3>
@@ -137,5 +153,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </div>
+      {showLog && <ChangelogModal onClose={() => setShowLog(false)} />}
+    </>
   );
 }
