@@ -21,3 +21,5 @@ public/icons/
 # テスト一時ファイル
 e2e-run.mjs
 dev-smoke-run.mjs
+
+public/tesseract/

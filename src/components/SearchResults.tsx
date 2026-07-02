@@ -37,15 +37,18 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
       const pdfIds = Array.from(new Set(top.map((h) => h.pdfId)));
       const pageKeys = top.filter((h) => h.kind === 'page').map((h) => `${h.pdfId}#${h.page}`);
       const noteKeys = top.filter((h) => h.kind === 'note').map((h) => `${h.pdfId}#${h.page}`);
-      const [pdfRows, pageRows, noteRows] = await Promise.all([
+      const photoIds = top.filter((h) => h.kind === 'photo' && h.photoId).map((h) => h.photoId!);
+      const [pdfRows, pageRows, noteRows, photoRows] = await Promise.all([
         db.pdfs.bulkGet(pdfIds),
         db.pages.bulkGet(pageKeys),
         db.pageNotes.bulkGet(noteKeys),
+        db.photos.bulkGet(photoIds),
       ]);
       if (cancelled) return;
       const pdfById = new Map(pdfRows.filter(Boolean).map((p) => [p!.id, p!] as const));
       const pageTextByKey = new Map(pageKeys.map((k, i) => [k, pageRows[i]?.text ?? ''] as const));
       const noteTextByKey = new Map(noteKeys.map((k, i) => [k, noteRows[i]?.text ?? ''] as const));
+      const photoTextById = new Map(photoIds.map((id, i) => [id, photoRows[i]?.ocrText ?? ''] as const));
 
       const built: SearchHit[] = top.map((h) => {
         const pdf = pdfById.get(h.pdfId);
@@ -55,9 +58,11 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
             ? pageTextByKey.get(key) ?? ''
             : h.kind === 'note'
               ? noteTextByKey.get(key) ?? ''
-              : h.kind === 'file'
-                ? `${pdf?.title ?? ''} ／ ${pdf?.fileName ?? ''}`
-                : pdf?.memo ?? '';
+              : h.kind === 'photo'
+                ? photoTextById.get(h.photoId ?? '') ?? ''
+                : h.kind === 'file'
+                  ? `${pdf?.title ?? ''} ／ ${pdf?.fileName ?? ''}`
+                  : pdf?.memo ?? '';
         return {
           pdfId: h.pdfId,
           page: h.page,
@@ -87,16 +92,13 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
       </div>
       {!busy && hits.length === 0 && (
         <div className="empty">
-          該当なし。型番は途中まで、キーワードは短めが当たりやすいです（本文にテキストが無いスキャンPDFは検索対象外）。
+          該当なし。型番は途中まで、キーワードは短めが当たりやすいです（スキャンPDF・写真はOCR（文字認識）すると検索できます）。
         </div>
       )}
       <ul className="resultList">
-        {hits.map((h) => (
-          <li key={`${h.kind}:${h.pdfId}#${h.page}`}>
-            <button
-              className="hitCard"
-              onClick={() => onOpen(h.pdfId, h.kind === 'memo' ? 1 : h.page, query)}
-            >
+        {hits.map((h, i) => (
+          <li key={`${i}:${h.kind}:${h.pdfId}#${h.page}`}>
+            <button className="hitCard" onClick={() => onOpen(h.pdfId, h.page, query)}>
               <div className="hitTop">
                 <span className="hitTitle">{h.title}</span>
                 <span className="hitPage">
@@ -104,9 +106,11 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
                     ? '📝 メモ'
                     : h.kind === 'file'
                       ? '📄 ファイル名'
-                      : h.kind === 'note'
-                        ? `p.${h.page} 📝メモ`
-                        : `p.${h.page}`}
+                      : h.kind === 'photo'
+                        ? '📷 写真'
+                        : h.kind === 'note'
+                          ? `p.${h.page} 📝メモ`
+                          : `p.${h.page}`}
                 </span>
               </div>
               <div className="hitSnippet" dangerouslySetInnerHTML={{ __html: h.snippetHtml }} />

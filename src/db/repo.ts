@@ -87,6 +87,7 @@ export async function importPdfFile(
 export async function deletePdf(id: string): Promise<void> {
   const pageRows = await db.pages.where('pdfId').equals(id).primaryKeys();
   const noteIds = (await db.pageNotes.where('pdfId').equals(id).primaryKeys()) as string[];
+  const photoIds = (await db.photos.where('pdfId').equals(id).primaryKeys()) as string[];
   await db.transaction(
     'rw',
     [db.pdfs, db.blobs, db.pages, db.photos, db.campaigns, db.thumbs, db.pageNotes],
@@ -105,6 +106,7 @@ export async function deletePdf(id: string): Promise<void> {
   removeTextDoc(`m:${id}`);
   removeTextDoc(`f:${id}`);
   for (const nid of noteIds) removeTextDoc(`n:${nid}`);
+  for (const pid of photoIds) removeTextDoc(`o:${id}#${pid}`);
   await persistNow();
 }
 
@@ -163,7 +165,9 @@ export async function addPhoto(pdfId: string, file: File): Promise<PhotoRow> {
   return row;
 }
 export async function deletePhoto(id: string): Promise<void> {
+  const p = await db.photos.get(id);
   await db.photos.delete(id);
+  if (p) removeTextDoc(`o:${p.pdfId}#${id}`); // 写真OCR索引も破棄
 }
 
 // ---- 施策 ----

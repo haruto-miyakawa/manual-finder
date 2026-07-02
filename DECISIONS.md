@@ -195,3 +195,20 @@ db.version(1).stores({
 - SW precache 197エントリ(約3.86MiB)に pdf.worker・cmaps(168)・standard_fonts(14)・アイコンを含む＝機内モードで描画まで完動。
 
 **結論: 完了条件1〜8はすべて充足。** 検証に用いた一時ファイル（サンプルPDF生成器・Playwrightスクリプト等）はリポジトリに残していない（`node_modules` のPlaywrightは `--no-save` で package.json 非汚染）。
+
+---
+
+## 12. OCR（端末内文字認識）— 2026-07-03 追記
+
+依頼者の要望で「スキャンPDF（本文テキスト無し）と写真の文字」を検索対象にする。核心制約（外部送信ゼロ）を維持するため、**クラウドOCRは採用せず端末内OCRのみ**とする。
+
+- **エンジン**: Tesseract.js 5.1.1（Apache-2.0）＋ tesseract.js-core（SIMD+LSTM WASM）。
+- **ローカル同梱**: worker / core(WASM) / 言語データを `public/tesseract/` に用意（`scripts/copy-ocr-assets.mjs` が worker・core をコピー、言語データをビルド時DL＝ビルド時通信は許容）。ランタイムは全て**同一オリジン**から読み込み、外部通信は発生しない。`public/tesseract/` は `.gitignore`（PDFアセット同様、ビルドで再生成）。
+- **言語データ**: `jpn` は精度重視で標準版(4.0.0, gz約15MB)、`eng` は型番向けに高速版(4.0.0_fast, gz約2MB)。`createWorker('jpn+eng', 1, {workerPath, corePath, langPath, gzip:true})`。
+- **配信（SW）**: OCR資産は計約25MBと大きいため **precache から除外**（`globIgnores: ['**/tesseract/**']`）し、初回OCR時にだけ取得。同一オリジン `/tesseract/` のみ `runtimeCaching`(CacheFirst, cache名 `ocr-assets`)で保持し、以後オフラインでもOCR可能。外部オリジンは対象にしない＝外部取得経路は作らない。
+- **同意（履歴が残る前提）**: OCR結果は `pages`/`photos` テーブル＋検索索引に**永続化**（再スキャン不要）。取り込み時にスキャンPDFを検出したら確認ダイアログを出し、承諾時のみ実行。詳細画面からも後追いでOCR可能（PDF全体／写真は🔎で個別）。
+- **索引**: 写真OCRは doc id `o:${pdfId}#${photoId}`（`HitKind='photo'`、`parseDocId` で分解）。スキャンPDFのOCRは既存のページ本文(`${pdfId}#${page}`)として索引へ。`INDEX_VER` を 4 に上げ、旧索引は起動時に自動再構築。バックアップ(manifest)は `PhotoRow.ocrText` を含むため往復で復元される。
+- **メモリ**: 高精度化のためページは scale=2 で描画してからOCR。バッチ完了後に `terminateOcr()` でワーカー（モデル約数十MB）を解放（iPadのメモリ配慮）。
+- **トレードオフ（記録）**: 同梱容量が増える（約25MB）／1ページ数秒／認識精度は完璧でない。いずれも「外部送信ゼロ」を優先した結果として許容。
+
+**検証（2026-07-03）**: 本番ビルドの実アセット（`dist/tesseract/` の worker・core・lang）を素の静的配信し、Headless Chromium で `createWorker(...,{workerPath,corePath,langPath,gzip})` → 生成画像を `recognize` して **`HELLO OCR 12345` を完全認識**。ネットワークは同一オリジンのみ・404なし。アプリバンドルに `createWorker` とローカルパス（worker/core/lang）・`jpn+eng` が含まれることも確認。`npm run build`（tsc strict）成功。

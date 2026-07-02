@@ -12,6 +12,7 @@ import {
   setTags,
   setTitle,
 } from '../db/repo';
+import { ocrPdfPages, ocrPhoto, terminateOcr } from '../ocr';
 
 interface Props {
   pdfId: string;
@@ -37,6 +38,8 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
   const [memo, setMemoLocal] = useState('');
   const [tagText, setTagText] = useState('');
   const [category, setCategoryLocal] = useState('');
+  const [photoOcrBusy, setPhotoOcrBusy] = useState<string | null>(null);
+  const [pdfOcr, setPdfOcr] = useState<{ page: number; total: number } | null>(null);
 
   // 既存カテゴリ（候補として datalist に出す）
   const allCats = useLiveQuery(
@@ -87,6 +90,35 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
     setTagText('');
   }
 
+  async function onOcrPhoto(id: string) {
+    setPhotoOcrBusy(id);
+    try {
+      const t = await ocrPhoto(id);
+      if (!t.trim()) alert('文字を認識できませんでした（画像が不鮮明・文字が無い等）。');
+    } catch (e) {
+      alert(`OCR失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPhotoOcrBusy(null);
+      onChanged();
+    }
+  }
+
+  async function onOcrPdf() {
+    if (!pdf) return;
+    if (!confirm('端末内で文字認識(OCR)します。外部送信はありません。1ページ数秒かかります。実行しますか？')) return;
+    setPdfOcr({ page: 0, total: pdf.pageCount });
+    try {
+      const n = await ocrPdfPages(pdfId, ({ page, total }) => setPdfOcr({ page, total }));
+      alert(n > 0 ? `${n}ページ分の文字を認識しました。検索できるようになりました。` : '文字を認識できませんでした。');
+    } catch (e) {
+      alert(`OCR失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      await terminateOcr(); // ワーカー(モデル)のメモリを解放
+      setPdfOcr(null);
+      onChanged();
+    }
+  }
+
   return (
     <div className="overlay" onClick={onClose}>
       <div className="drawer" onClick={(e) => e.stopPropagation()}>
@@ -115,6 +147,11 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
             {pdf.pageCount}ページ ・ {(pdf.byteSize / 1024 / 1024).toFixed(1)}MB
             {!pdf.hasText && ' ・ 本文テキスト無し（検索対象外）'}
           </div>
+          {!pdf.hasText && (
+            <button className="btn wide ocrPdfBtn" onClick={() => void onOcrPdf()}>
+              🔎 OCR（文字認識）で検索対象にする
+            </button>
+          )}
 
           <label className="fieldLabel">カテゴリ（分類・1つ）</label>
           <input
@@ -184,6 +221,7 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
           )}
 
           <label className="fieldLabel">写真（{photos.length}）</label>
+          <div className="hint">虫めがねで写真内の文字を認識（OCR）→ 検索できます。✓＝認識済み。</div>
           <div className="photoGrid">
             {photos.map((p) => (
               <div key={p.id} className="photoItem">
@@ -191,6 +229,15 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
                 <button className="photoDel" onClick={() => void deletePhoto(p.id)} aria-label="写真削除">
                   ✕
                 </button>
+                <button
+                  className="photoOcr"
+                  onClick={() => void onOcrPhoto(p.id)}
+                  disabled={photoOcrBusy === p.id}
+                  aria-label="文字認識"
+                >
+                  {photoOcrBusy === p.id ? '…' : '🔎'}
+                </button>
+                {p.ocrText && p.ocrText.trim() && <span className="photoOcrBadge" aria-label="認識済み">✓</span>}
               </div>
             ))}
             <button className="photoAdd" onClick={() => photoInput.current?.click()}>
@@ -221,6 +268,21 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
           </button>
         </div>
       </div>
+
+      {pdfOcr && (
+        <div className="overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="modalCard">
+            <div className="spinnerBig" />
+            <div className="importText">
+              文字認識中
+              <br />
+              {pdfOcr.page > 0 ? `ページ ${pdfOcr.page}/${pdfOcr.total}` : '認識データ読み込み中…'}
+              <br />
+              <span className="ocrHintSmall">画面はこのままお待ちください</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

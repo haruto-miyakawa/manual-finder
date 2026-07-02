@@ -13,7 +13,7 @@ interface IndexDoc {
 
 const INDEX_META_KEY = 'searchIndex';
 const INDEX_VER_KEY = 'searchIndexVer';
-const INDEX_VER = 3; // 3: メモ/ページメモ/ファイル名(タイトル)も索引に含む
+const INDEX_VER = 4; // 4: 写真OCR(o:)も索引に含む / 3: メモ/ページメモ/ファイル名も
 
 // index/query 双方で同一トークナイザ。processTerm は tokenize 内で正規化済みなので恒等。
 const OPTIONS = {
@@ -40,16 +40,27 @@ export function getIndex(): MiniSearch<IndexDoc> {
   return mini;
 }
 
-export type HitKind = 'page' | 'note' | 'memo' | 'file';
+export type HitKind = 'page' | 'note' | 'memo' | 'file' | 'photo';
 
 // 索引の doc id 規約:
 //   ページ本文: `${pdfId}#${page}`
 //   ページメモ: `n:${pdfId}#${page}`
 //   PDFメモ:    `m:${pdfId}`
 //   ファイル名/タイトル: `f:${pdfId}`
-export function parseDocId(id: string): { kind: HitKind; pdfId: string; page: number } {
+//   写真OCR:    `o:${pdfId}#${photoId}`
+export function parseDocId(id: string): {
+  kind: HitKind;
+  pdfId: string;
+  page: number;
+  photoId?: string;
+} {
   if (id.startsWith('f:')) return { kind: 'file', pdfId: id.slice(2), page: 1 };
   if (id.startsWith('m:')) return { kind: 'memo', pdfId: id.slice(2), page: 1 };
+  if (id.startsWith('o:')) {
+    const rest = id.slice(2);
+    const i = rest.indexOf('#');
+    return { kind: 'photo', pdfId: rest.slice(0, i), page: 1, photoId: rest.slice(i + 1) };
+  }
   const isNote = id.startsWith('n:');
   const rest = isNote ? id.slice(2) : id;
   const i = rest.lastIndexOf('#');
@@ -80,10 +91,11 @@ export async function initSearchIndex(): Promise<void> {
 /** ページ本文＋PDFメモ＋ページメモから索引を作り直す（PDF再パース不要の復旧導線）。 */
 export async function rebuildFromPages(): Promise<number> {
   const fresh = create();
-  const [pages, pdfs, notes] = await Promise.all([
+  const [pages, pdfs, notes, photos] = await Promise.all([
     db.pages.toArray(),
     db.pdfs.toArray(),
     db.pageNotes.toArray(),
+    db.photos.toArray(),
   ]);
   const docs: IndexDoc[] = [];
   for (const r of pages) docs.push({ id: r.id, text: r.text });
@@ -93,6 +105,8 @@ export async function rebuildFromPages(): Promise<number> {
     if (f) docs.push({ id: `f:${p.id}`, text: f });
   }
   for (const n of notes) if (n.text && n.text.trim()) docs.push({ id: `n:${n.id}`, text: n.text });
+  for (const ph of photos)
+    if (ph.ocrText && ph.ocrText.trim()) docs.push({ id: `o:${ph.pdfId}#${ph.id}`, text: ph.ocrText });
   fresh.addAll(docs);
   mini = fresh;
   await persistNow();
@@ -138,6 +152,7 @@ export interface RawHit {
   kind: HitKind;
   pdfId: string;
   page: number;
+  photoId?: string;
   score: number;
 }
 
@@ -149,8 +164,8 @@ export function searchPages(query: string, limit = 200): RawHit[] {
   const results = idx.search(q);
   const hits: RawHit[] = [];
   for (const r of results) {
-    const { kind, pdfId, page } = parseDocId(r.id as string);
-    hits.push({ id: r.id as string, kind, pdfId, page, score: r.score });
+    const { kind, pdfId, page, photoId } = parseDocId(r.id as string);
+    hits.push({ id: r.id as string, kind, pdfId, page, photoId, score: r.score });
     if (hits.length >= limit) break;
   }
   return hits;

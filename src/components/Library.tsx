@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { importPdfFile, setFavorite, type ImportProgress } from '../db/repo';
 import { ensureThumb } from '../pdf/thumb';
+import { ocrPdfPages, terminateOcr } from '../ocr';
 import type { PdfMeta } from '../types';
 
 interface Props {
@@ -18,6 +19,9 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
   const [importing, setImporting] = useState<{ name: string; page: number; total: number; idx: number; count: number } | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // スキャンPDFのOCR: 取り込み後に確認 → 実行中の進捗
+  const [ocrPrompt, setOcrPrompt] = useState<{ items: PdfMeta[] } | null>(null);
+  const [ocrRunning, setOcrRunning] = useState<{ name: string; page: number; total: number; idx: number; count: number } | null>(null);
 
   const allTags = useMemo(() => {
     const s = new Set<string>();
@@ -57,15 +61,17 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     const list = Array.from(files).filter((f) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+    const imported: PdfMeta[] = [];
     for (let i = 0; i < list.length; i++) {
       const f = list[i];
       setImporting({ name: f.name, page: 0, total: 0, idx: i + 1, count: list.length });
       try {
-        await importPdfFile(f, (p: ImportProgress) => {
+        const meta = await importPdfFile(f, (p: ImportProgress) => {
           if (p.phase === 'extract') {
             setImporting((cur) => (cur ? { ...cur, page: p.page ?? 0, total: p.total ?? 0 } : cur));
           }
         });
+        imported.push(meta);
       } catch (e) {
         const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
         alert(`取り込み失敗: ${f.name}\n${msg}`);
@@ -78,6 +84,28 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
     setImporting(null);
     onChanged();
     if (fileRef.current) fileRef.current.value = '';
+    // 本文テキストの無いスキャンPDFがあれば、OCR（端末内・外部送信なし）を確認
+    const scanned = imported.filter((m) => !m.hasText);
+    if (scanned.length > 0) setOcrPrompt({ items: scanned });
+  }
+
+  async function runOcr(items: PdfMeta[]) {
+    setOcrPrompt(null);
+    for (let i = 0; i < items.length; i++) {
+      const m = items[i];
+      setOcrRunning({ name: m.title, page: 0, total: m.pageCount, idx: i + 1, count: items.length });
+      try {
+        await ocrPdfPages(m.id, ({ page, total }) =>
+          setOcrRunning((cur) => (cur ? { ...cur, page, total } : cur)),
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+        alert(`OCR失敗: ${m.title}\n${msg}`);
+      }
+    }
+    await terminateOcr(); // ワーカー(モデル)のメモリを解放
+    setOcrRunning(null);
+    onChanged();
   }
 
   return (
@@ -171,6 +199,50 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
               <b>{importing.name}</b>
               <br />
               {importing.total > 0 ? `テキスト抽出 ${importing.page}/${importing.total}p` : '準備中…'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ocrPrompt && (
+        <div className="overlay">
+          <div className="modalCard ocrCard">
+            <div className="ocrTitle">文字認識（OCR）しますか？</div>
+            <div className="ocrBody">
+              本文テキストの無いスキャンPDFが <b>{ocrPrompt.items.length}</b> 件あります。
+              このままでは検索に引っかかりません。
+              <br />
+              端末内で文字認識すると、検索できるようになります（結果は保存され、再スキャン不要）。
+              <ul className="ocrNotes">
+                <li>すべて端末内で処理・外部送信は一切ありません</li>
+                <li>1ページ数秒かかります（枚数が多いと時間がかかります）</li>
+                <li>初回のみ認識データ(約20MB)を読み込みます</li>
+              </ul>
+            </div>
+            <div className="ocrBtns">
+              <button className="btn" onClick={() => setOcrPrompt(null)}>
+                後で
+              </button>
+              <button className="btn primary" onClick={() => void runOcr(ocrPrompt.items)}>
+                OCRする
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ocrRunning && (
+        <div className="overlay">
+          <div className="modalCard">
+            <div className="spinnerBig" />
+            <div className="importText">
+              文字認識中 ({ocrRunning.idx}/{ocrRunning.count})
+              <br />
+              <b>{ocrRunning.name}</b>
+              <br />
+              {ocrRunning.page > 0 ? `ページ ${ocrRunning.page}/${ocrRunning.total}` : '認識データ読み込み中…'}
+              <br />
+              <span className="ocrHintSmall">画面はこのままお待ちください</span>
             </div>
           </div>
         </div>

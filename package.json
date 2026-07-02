@@ -1,12 +1,12 @@
 {
   "name": "manual-finder",
   "private": true,
-  "version": "1.4.2",
+  "version": "1.5.0",
   "type": "module",
   "description": "iPad専用・完全オフラインのPDFマニュアル検索PWA（外部通信ゼロ）",
   "license": "MIT",
   "scripts": {
-    "prepare-assets": "node scripts/copy-pdfjs-assets.mjs && node scripts/gen-icons.mjs",
+    "prepare-assets": "node scripts/copy-pdfjs-assets.mjs && node scripts/copy-ocr-assets.mjs && node scripts/gen-icons.mjs",
     "predev": "npm run prepare-assets",
     "dev": "vite",
     "prebuild": "npm run prepare-assets",
@@ -21,7 +21,8 @@
     "minisearch": "7.2.0",
     "pdfjs-dist": "6.1.200",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "@types/react": "18.3.12",

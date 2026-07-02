@@ -717,6 +717,71 @@ body {
   border-radius: 12px;
   font-size: 30px;
 }
+.photoOcr {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
+}
+.photoOcr:disabled {
+  opacity: 0.6;
+}
+.photoOcrBadge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: var(--accent, #2f81f7);
+  color: #fff;
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ocrPdfBtn {
+  margin: 6px 0 2px;
+}
+
+/* ---- OCR 確認モーダル ---- */
+.ocrCard {
+  max-width: 92vw;
+  width: 420px;
+  text-align: left;
+  gap: 10px;
+}
+.ocrTitle {
+  font-size: 18px;
+  font-weight: 700;
+}
+.ocrBody {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg);
+}
+.ocrNotes {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--fg-dim);
+  font-size: 13px;
+}
+.ocrNotes li {
+  margin: 2px 0;
+}
+.ocrBtns {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.ocrHintSmall {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
 
 /* ---- 施策 ---- */
 .campItem {

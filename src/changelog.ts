@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.5.0',
+    date: '2026-07-03',
+    changes: [
+      'OCR（文字認識）に対応: スキャンPDF（本文テキスト無し）と写真の中の文字を認識して検索できるように',
+      '取り込み時にスキャンPDFを検出したら、OCRするか確認（詳細画面からも後でOCR可能）',
+      '写真は詳細画面の🔎から個別にOCR（認識済みは✓表示・検索結果に「📷 写真」）',
+      'OCRはすべて端末内で処理し、外部送信は一切なし（認識データもローカル同梱）',
+    ],
+  },
+  {
     version: '1.4.2',
     date: '2026-07-03',
     changes: [

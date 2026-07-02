@@ -37,6 +37,7 @@ export interface PhotoRow {
   blob: Blob;
   name: string;
   type: string; // MIME
+  ocrText?: string; // OCRで抽出した文字（検索対象）。未実行は undefined
   createdAt: number;
 }
 
@@ -58,11 +59,11 @@ export interface MetaRow {
   value: unknown;
 }
 
-/** 検索ヒット（ページ本文 / PDFメモ / ページメモ）。 */
+/** 検索ヒット（ページ本文 / PDFメモ / ページメモ / ファイル名 / 写真OCR）。 */
 export interface SearchHit {
   pdfId: string;
   page: number;
-  kind: 'page' | 'note' | 'memo' | 'file';
+  kind: 'page' | 'note' | 'memo' | 'file' | 'photo';
   title: string;
   snippetHtml: string; // 一致語を <mark> で強調済みHTML（サニタイズ済みテキストのみ）
   score: number;

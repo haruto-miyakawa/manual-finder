@@ -12,8 +12,10 @@ const BUILD_TIME = new Date().toISOString();
 // 原因調査時のみ true にすると非圧縮＋sourcemap（通常は false）。
 const DEBUG_UNMIN = false;
 
-// 完全オフラインSPA。外部通信ゼロが最優先のため runtimeCaching は一切定義せず
-// （外部オリジンへ取りに行く経路そのものを作らない）、全アセットを precache する。
+// 完全オフラインSPA。外部通信ゼロが最優先。全アセットを precache する。
+// runtimeCaching は「同一オリジンの OCR 資産(/tesseract/)」だけ CacheFirst で持つ
+// （外部オリジンは一切対象にしない＝外部取得経路は作らない）。OCR資産は大きい(計~25MB)ため
+// precache から外し、初回OCR時にだけ取得→以後キャッシュ、で初回起動を軽く保つ。
 export default defineConfig({
   // 既定 base '/'。GitHub Pages 等のサブパス配信では VITE_BASE=/manual-finder/ を渡す。
   // pdf.js の cMap/font パスは実行時に import.meta.env.BASE_URL から解決するのでサブパスでも壊れない。
@@ -59,12 +61,26 @@ export default defineConfig({
         globPatterns: [
           '**/*.{js,mjs,css,html,ico,png,svg,webmanifest,bcmap,pfb,ttf,otf,cff,wasm,json}',
         ],
+        // OCR資産(worker/core/言語データ)は precache せず、初回OCR時に取得してキャッシュする
+        globIgnores: ['**/tesseract/**'],
         // pdf.worker が既定上限(2MiB)を超えても precache から漏れないよう引き上げ
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        // 外部オリジンのランタイムキャッシュは定義しない（＝外部取得経路なし）
+        // 同一オリジンの OCR 資産(/tesseract/)のみ実行時キャッシュ。外部オリジンには /tesseract/ の
+        // リクエストが存在しない（アプリが同一オリジンからしか読まない）ため外部通信は発生しない。
+        runtimeCaching: [
+          {
+            urlPattern: /\/tesseract\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ocr-assets',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
         navigateFallback: 'index.html',
       },
     }),
