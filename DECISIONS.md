@@ -124,7 +124,7 @@ db.version(1).stores({
 - `runtimeCaching` は**定義しない**（外部取得経路を作らない）。
 - manifest: `display: standalone`, `orientation: portrait`, アイコン 192/512/maskable、`theme_color`/`background_color`、`apple-touch-icon`。
 - **iOS スプラッシュ（apple-touch-startup-image）は端末解像度別に多数必要**で、対象端末の実解像度が不明なため**個別生成は省略**し、`background_color`/`theme_color` による起動画面に留める（機能優先。単一端末運用のため実害小）。この省略を明示的に記録。
-- アイコンは外部素材を使わず **Node 標準 zlib で自前生成**（`scripts/gen-icons.mjs`、単色地＋虫眼鏡モチーフ）。外部通信・追加依存ゼロ。
+- アイコンは `brand/manual-icon.svg`（マニュアル/本モチーフ）を Chromium で各サイズPNGにラスタライズし `brand/*.png` としてコミット。ビルド時に `scripts/gen-icons.mjs` が `public/icons/` へ**コピーするだけ**（外部通信なし・ランタイム依存なし。ラスタライズは初回/変更時のみ、フチなし化のためタイルと同じグラデ背景を敷く）。
 
 ---
 
