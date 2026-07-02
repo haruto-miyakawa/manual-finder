@@ -36,8 +36,25 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageInput, setPageInput] = useState(String(initialPage));
+  // 横向き＝没入(全画面)モード。chrome=操作バーの表示。
+  const [landscape, setLandscape] = useState(false);
+  const [chrome, setChrome] = useState(true);
+  const barsVisible = !landscape || chrome;
 
   const segs = querySegments(highlightQuery);
+
+  // ---- 画面の向き検出（横＝没入・バー非表示 / 縦＝バー表示） ----
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: landscape)');
+    const apply = () => {
+      const ls = mq.matches;
+      setLandscape(ls);
+      setChrome(!ls);
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   // ---- ドキュメント読み込み ----
   useEffect(() => {
@@ -159,6 +176,15 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     };
   }, [loading, error, renderPage]);
 
+  // バー表示の切替・向き変更で表示領域が変わるので、レイアウト反映後に再フィット
+  const renderPageRef = useRef(renderPage);
+  renderPageRef.current = renderPage;
+  useEffect(() => {
+    if (loading || error) return;
+    const id = requestAnimationFrame(() => void renderPageRef.current());
+    return () => cancelAnimationFrame(id);
+  }, [chrome, landscape, loading, error]);
+
   // ---- ページ移動 ----
   const goToPage = useCallback(
     (p: number) => {
@@ -178,9 +204,10 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const zoomOut = () => setZoom((z) => clampZoom(z / 1.25));
   const resetZoom = () => setZoom(1);
 
-  // ダブルタップ / ピンチ
+  // ジェスチャ: ピンチ(2本)ズーム / 1本タップ(横=左右送り・中央でバー切替 / 縦=ダブルタップズーム) / 下から引き上げでバー表示
   const lastTapRef = useRef(0);
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  const oneRef = useRef<{ x: number; y: number; t: number; moved: boolean } | null>(null);
 
   const dist = (t: React.TouchList) => {
     const dx = t[0].clientX - t[1].clientX;
@@ -189,25 +216,27 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
+    if (e.touches.length >= 2) {
       pinchRef.current = { startDist: dist(e.touches), startZoom: zoom };
+      oneRef.current = null;
     } else if (e.touches.length === 1) {
-      const now = Date.now();
-      if (now - lastTapRef.current < 300) {
-        setZoom((z) => (z > 1.05 ? 1 : 2.5)); // ダブルタップでトグル
-        lastTapRef.current = 0;
-      } else {
-        lastTapRef.current = now;
-      }
+      const t = e.touches[0];
+      oneRef.current = { x: t.clientX, y: t.clientY, t: Date.now(), moved: false };
     }
   };
   const onTouchMove = (e: React.TouchEvent) => {
     const p = pinchRef.current;
-    if (p && e.touches.length === 2 && wrapRef.current) {
+    if (p && e.touches.length >= 2 && wrapRef.current) {
       e.preventDefault();
       const ratio = dist(e.touches) / p.startDist;
       wrapRef.current.style.transform = `scale(${ratio})`;
       wrapRef.current.style.transformOrigin = 'center top';
+      return;
+    }
+    const o = oneRef.current;
+    if (o && e.touches.length === 1) {
+      const t = e.touches[0];
+      if (Math.hypot(t.clientX - o.x, t.clientY - o.y) > 12) o.moved = true;
     }
   };
   const onTouchEnd = (e: React.TouchEvent) => {
@@ -217,7 +246,40 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
       const ratio = ratioStr ? parseFloat(ratioStr[1]) : 1;
       wrapRef.current.style.transform = '';
       pinchRef.current = null;
+      oneRef.current = null;
       setZoom(clampZoom(p.startZoom * ratio));
+      return;
+    }
+    const o = oneRef.current;
+    oneRef.current = null;
+    if (!o) return;
+    const endY = e.changedTouches[0]?.clientY ?? o.y;
+    const dt = Date.now() - o.t;
+
+    // 横向き: 画面下から上へ引き上げ → 操作バーを表示
+    if (landscape) {
+      const vh = window.innerHeight;
+      if (o.moved && o.y > vh - 96 && o.y - endY > 40) {
+        setChrome(true);
+        return;
+      }
+    }
+    if (o.moved || dt >= 400) return; // ドラッグ/長押しはタップ扱いにしない
+
+    if (landscape) {
+      const w = scrollRef.current?.clientWidth ?? window.innerWidth;
+      if (o.x < w * 0.33) prev(); // 左タップ=前へ
+      else if (o.x > w * 0.67) next(); // 右タップ=次へ
+      else setChrome((c) => !c); // 中央タップ=バー表示切替
+    } else {
+      // 縦向き: ダブルタップでズームトグル
+      const now = Date.now();
+      if (now - lastTapRef.current < 300) {
+        setZoom((z) => (z > 1.05 ? 1 : 2.5));
+        lastTapRef.current = 0;
+      } else {
+        lastTapRef.current = now;
+      }
     }
   };
 
@@ -234,26 +296,28 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   }, [pageNum, numPages]);
 
   return (
-    <div className="viewerRoot">
-      <header className="viewerBar">
-        <button className="btn iconBtn" onClick={onClose} aria-label="閉じる">
-          ✕
-        </button>
-        <div className="viewerTitle" title={title}>
-          {title}
-        </div>
-        <div className="viewerZoom">
-          <button className="btn iconBtn" onClick={zoomOut} aria-label="縮小">
-            −
+    <div className={`viewerRoot${landscape && !chrome ? ' immersive' : ''}`}>
+      {barsVisible && (
+        <header className="viewerBar">
+          <button className="btn iconBtn" onClick={onClose} aria-label="閉じる">
+            ✕
           </button>
-          <button className="btn iconBtn" onClick={resetZoom} aria-label="等倍">
-            {Math.round(zoom * 100)}%
-          </button>
-          <button className="btn iconBtn" onClick={zoomIn} aria-label="拡大">
-            ＋
-          </button>
-        </div>
-      </header>
+          <div className="viewerTitle" title={title}>
+            {title}
+          </div>
+          <div className="viewerZoom">
+            <button className="btn iconBtn" onClick={zoomOut} aria-label="縮小">
+              −
+            </button>
+            <button className="btn iconBtn" onClick={resetZoom} aria-label="等倍">
+              {Math.round(zoom * 100)}%
+            </button>
+            <button className="btn iconBtn" onClick={zoomIn} aria-label="拡大">
+              ＋
+            </button>
+          </div>
+        </header>
+      )}
 
       <div
         className="viewerScroll"
@@ -270,28 +334,51 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
         </div>
       </div>
 
-      <footer className="viewerNav">
-        <button className="btn navBtn" onClick={prev} disabled={pageNum <= 1}>
-          ‹ 前
-        </button>
-        <div className="pageJump">
+      {barsVisible ? (
+        <footer className="viewerNav">
+          <button className="btn navBtn" onClick={prev} disabled={pageNum <= 1} aria-label="前のページ">
+            ‹
+          </button>
           <input
-            className="pageInput"
-            inputMode="numeric"
-            value={pageInput}
-            onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ''))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') goToPage(Number(pageInput) || 1);
-            }}
-            onBlur={() => goToPage(Number(pageInput) || 1)}
-            aria-label="ページ番号"
+            className="pageSlider"
+            type="range"
+            min={1}
+            max={Math.max(1, numPages)}
+            value={Math.min(pageNum, numPages || 1)}
+            onChange={(e) => goToPage(Number(e.target.value))}
+            aria-label="ページを選択"
           />
-          <span className="pageTotal">/ {numPages || '—'}</span>
-        </div>
-        <button className="btn navBtn" onClick={next} disabled={numPages > 0 && pageNum >= numPages}>
-          次 ›
-        </button>
-      </footer>
+          <div className="pageJump">
+            <input
+              className="pageInput"
+              inputMode="numeric"
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ''))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') goToPage(Number(pageInput) || 1);
+              }}
+              onBlur={() => goToPage(Number(pageInput) || 1)}
+              aria-label="ページ番号"
+            />
+            <span className="pageTotal">/ {numPages || '—'}</span>
+          </div>
+          <button
+            className="btn navBtn"
+            onClick={next}
+            disabled={numPages > 0 && pageNum >= numPages}
+            aria-label="次のページ"
+          >
+            ›
+          </button>
+        </footer>
+      ) : (
+        !loading &&
+        !error && (
+          <div className="viewerHint" aria-hidden>
+            ▲ 下から引き上げて操作　·　左右タップでページ送り　·　{pageNum} / {numPages}
+          </div>
+        )
+      )}
     </div>
   );
 }

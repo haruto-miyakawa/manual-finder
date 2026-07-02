@@ -818,11 +818,19 @@ body {
   border-top: 1px solid var(--line);
 }
 .navBtn {
-  min-width: 84px;
+  min-width: 52px;
   min-height: 52px;
+  font-size: 22px;
+}
+.pageSlider {
+  flex: 1;
+  min-width: 60px;
+  height: 44px;
+  accent-color: var(--accent);
+  background: transparent;
 }
 .pageJump {
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -841,6 +849,30 @@ body {
 .pageTotal {
   color: var(--fg-dim);
   font-size: 14px;
+}
+
+/* ---- 横向き没入(全画面)モード ---- */
+.viewerRoot.immersive {
+  background: #000;
+}
+.viewerRoot.immersive .viewerScroll {
+  padding: 0;
+}
+.viewerHint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(8px + var(--safe-bottom));
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 14px;
+  white-space: nowrap;
+  max-width: 96vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- ヘルプ(ⓘ)ボタン ---- */

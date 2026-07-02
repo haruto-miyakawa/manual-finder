@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.7',
+    date: '2026-07-03',
+    changes: [
+      '横画面で没入(全画面)表示: 左右タップでページ送り、中央タップまたは下から引き上げで操作バーを表示',
+      '操作バーにページスライダーを追加（ドラッグでページ選択・移動）',
+    ],
+  },
+  {
     version: '1.2.6',
     date: '2026-07-03',
     changes: [
