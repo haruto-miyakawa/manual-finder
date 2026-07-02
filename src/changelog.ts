@@ -7,6 +7,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.2.6',
+    date: '2026-07-03',
+    changes: [
+      '横向き（ランドスケープ）PDF・横画面での表示を改善: ページ全体が収まるようフィット（下が切れて見えない問題を修正）',
+    ],
+  },
+  {
     version: '1.2.5',
     date: '2026-07-03',
     changes: [

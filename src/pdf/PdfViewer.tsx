@@ -95,9 +95,15 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     }
 
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const base = page.getViewport({ scale: 1 });
-    const avail = scroll.clientWidth - 16; // 余白
-    const fitScale = avail > 0 ? avail / base.width : 1;
+    const base = page.getViewport({ scale: 1 }); // ページの回転も反映済み
+    // 「ページ全体が収まる」フィット: 幅・高さ両方を見て小さい方に合わせる。
+    // これで縦向きページは従来どおり、横向き（ランドスケープ）ページや横画面でも
+    // ページ全体が見える（幅フィットだけだと横向きページが縦にはみ出して下が切れていた）。
+    const availW = scroll.clientWidth - 16;
+    const availH = scroll.clientHeight - 16;
+    const fitW = availW > 0 ? availW / base.width : 1;
+    const fitH = availH > 0 ? availH / base.height : fitW;
+    const fitScale = Math.min(fitW, fitH);
     const effScale = fitScale * zoom;
     const viewport = page.getViewport({ scale: effScale });
 
