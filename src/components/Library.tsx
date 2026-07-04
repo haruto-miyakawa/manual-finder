@@ -1,7 +1,7 @@
 // PDFライブラリ。お気に入りは最上部に大きめタイル。取り込み・タグ絞り込み・詳細/ビューア導線。
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/db';
+import { db, setMeta } from '../db/db';
 import { importPdfFile, setFavorite, type ImportProgress } from '../db/repo';
 import { ensureThumb } from '../pdf/thumb';
 import { ocrPdfPages, terminateOcr } from '../ocr';
@@ -18,7 +18,9 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState<{ name: string; page: number; total: number; idx: number; count: number } | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // カテゴリ開閉: 規定は全部閉。開いているカテゴリ名を meta に保存し次回起動時に復元。
+  const openCatsRow = useLiveQuery(() => db.meta.get('libCatOpen'), [], undefined);
+  const openCats = new Set((openCatsRow?.value as string[] | undefined) ?? []);
   // スキャンPDFのOCR: 取り込み後に確認 → 実行中の進捗
   const [ocrPrompt, setOcrPrompt] = useState<{ items: PdfMeta[] } | null>(null);
   const [ocrRunning, setOcrRunning] = useState<{ name: string; page: number; total: number; idx: number; count: number } | null>(null);
@@ -50,13 +52,12 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
     return names.map((name) => ({ name, items: map.get(name)! }));
   }, [listed]);
 
-  const toggleCat = (name: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
+  const toggleCat = (name: string) => {
+    const next = new Set(openCats);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    void setMeta('libCatOpen', Array.from(next));
+  };
 
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -159,7 +160,7 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
         {tagFilter && listed.length === 0 && <div className="empty">「{tagFilter}」に該当なし。</div>}
 
         {groups.map((g) => {
-          const isOpen = !collapsed.has(g.name);
+          const isOpen = openCats.has(g.name);
           return (
             <div key={g.name} className="catSection">
               <button

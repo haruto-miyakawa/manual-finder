@@ -23,3 +23,7 @@ e2e-run.mjs
 dev-smoke-run.mjs
 
 public/tesseract/
+
+# 内部仕様書（公開リポジトリに含めない）
+manual-pwa-ultracode-prompt.md
+manual-finder-spec-*.md

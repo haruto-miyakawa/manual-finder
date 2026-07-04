@@ -1,18 +1,10 @@
-// PDF詳細ドロワー: タイトル/お気に入り/タグ/メモ編集、写真の追加・削除、ビューア起動、削除。
-import { useEffect, useRef, useState } from 'react';
+// PDF詳細ドロワー: タイトル/お気に入り/タグ/リッチメモ（写真インライン）、ビューア起動、削除。
+import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import {
-  addPhoto,
-  deletePdf,
-  deletePhoto,
-  setCategory,
-  setFavorite,
-  setMemo,
-  setTags,
-  setTitle,
-} from '../db/repo';
-import { ocrPdfPages, ocrPhoto, terminateOcr } from '../ocr';
+import { deletePdf, setCategory, setFavorite, setTags, setTitle } from '../db/repo';
+import { ocrPdfPages, terminateOcr } from '../ocr';
+import { MemoEditor } from './MemoEditor';
 
 interface Props {
   pdfId: string;
@@ -23,22 +15,14 @@ interface Props {
 
 export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
   const pdf = useLiveQuery(() => db.pdfs.get(pdfId), [pdfId]);
-  const photos = useLiveQuery(
-    () => db.photos.where('pdfId').equals(pdfId).sortBy('createdAt'),
-    [pdfId],
-    [],
-  );
   const pageNotes = useLiveQuery(
     () => db.pageNotes.where('pdfId').equals(pdfId).sortBy('page'),
     [pdfId],
     [],
   );
-  const photoInput = useRef<HTMLInputElement | null>(null);
   const [title, setTitleLocal] = useState('');
-  const [memo, setMemoLocal] = useState('');
   const [tagText, setTagText] = useState('');
   const [category, setCategoryLocal] = useState('');
-  const [photoOcrBusy, setPhotoOcrBusy] = useState<string | null>(null);
   const [pdfOcr, setPdfOcr] = useState<{ page: number; total: number } | null>(null);
 
   // 既存カテゴリ（候補として datalist に出す）
@@ -56,51 +40,17 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
   useEffect(() => {
     if (pdf) {
       setTitleLocal(pdf.title);
-      setMemoLocal(pdf.memo);
       setCategoryLocal(pdf.category || '');
     }
   }, [pdf?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 写真の object URL 管理
-  const [urls, setUrls] = useState<Record<string, string>>({});
-  useEffect(() => {
-    const map: Record<string, string> = {};
-    photos.forEach((p) => {
-      map[p.id] = URL.createObjectURL(p.blob);
-    });
-    setUrls(map);
-    return () => Object.values(map).forEach((u) => URL.revokeObjectURL(u));
-  }, [photos]);
-
   if (!pdf) return null;
-
-  async function onAddPhotos(files: FileList | null) {
-    if (!files) return;
-    for (const f of Array.from(files)) {
-      if (f.type.startsWith('image/')) await addPhoto(pdfId, f);
-    }
-    onChanged();
-    if (photoInput.current) photoInput.current.value = '';
-  }
 
   function addTag() {
     const t = tagText.trim();
     if (!t || !pdf) return;
     if (!pdf.tags.includes(t)) void setTags(pdfId, [...pdf.tags, t]);
     setTagText('');
-  }
-
-  async function onOcrPhoto(id: string) {
-    setPhotoOcrBusy(id);
-    try {
-      const t = await ocrPhoto(id);
-      if (!t.trim()) alert('文字を認識できませんでした（画像が不鮮明・文字が無い等）。');
-    } catch (e) {
-      alert(`OCR失敗: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setPhotoOcrBusy(null);
-      onChanged();
-    }
   }
 
   async function onOcrPdf() {
@@ -194,15 +144,8 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
             </button>
           </div>
 
-          <label className="fieldLabel">メモ</label>
-          <textarea
-            className="textArea"
-            rows={4}
-            value={memo}
-            onChange={(e) => setMemoLocal(e.target.value)}
-            onBlur={() => void setMemo(pdfId, memo)}
-            placeholder="このマニュアルのメモ"
-          />
+          <label className="fieldLabel">メモ（テキストの好きな位置に写真を差し込めます）</label>
+          <MemoEditor pdfId={pdfId} initial={pdf.memoDoc ?? []} onChanged={onChanged} />
 
           <label className="fieldLabel">ページメモ（{pageNotes.length}）</label>
           {pageNotes.length === 0 ? (
@@ -219,39 +162,6 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
               ))}
             </ul>
           )}
-
-          <label className="fieldLabel">写真（{photos.length}）</label>
-          <div className="hint">虫めがねで写真内の文字を認識（OCR）→ 検索できます。✓＝認識済み。</div>
-          <div className="photoGrid">
-            {photos.map((p) => (
-              <div key={p.id} className="photoItem">
-                {urls[p.id] && <img src={urls[p.id]} alt={p.name} />}
-                <button className="photoDel" onClick={() => void deletePhoto(p.id)} aria-label="写真削除">
-                  ✕
-                </button>
-                <button
-                  className="photoOcr"
-                  onClick={() => void onOcrPhoto(p.id)}
-                  disabled={photoOcrBusy === p.id}
-                  aria-label="文字認識"
-                >
-                  {photoOcrBusy === p.id ? '…' : '🔎'}
-                </button>
-                {p.ocrText && p.ocrText.trim() && <span className="photoOcrBadge" aria-label="認識済み">✓</span>}
-              </div>
-            ))}
-            <button className="photoAdd" onClick={() => photoInput.current?.click()}>
-              ＋
-            </button>
-            <input
-              ref={photoInput}
-              type="file"
-              accept="image/*"
-              multiple
-              hidden
-              onChange={(e) => void onAddPhotos(e.target.files)}
-            />
-          </div>
 
           <button
             className="btn danger wide"

@@ -5,6 +5,7 @@ import { zip, unzip, type AsyncZippable, type Unzipped } from 'fflate';
 import { db, type PageNoteRow } from '../db/db';
 import type { PdfMeta, PhotoRow, Campaign, PageRow, PdfBlobRow } from '../types';
 import { rebuildFromPages, clearIndex } from '../search/searchIndex';
+import { migrateMemoDocs } from '../db/repo';
 
 const FORMAT_VERSION = 1;
 const enc = new TextEncoder();
@@ -258,6 +259,9 @@ export async function importAllReplace(
       for (const nrow of manifest.pageNotes ?? []) await db.pageNotes.put(nrow);
     },
   );
+
+  // 旧形式バックアップ（memoDoc無し）はリッチメモへ移行（新形式はそのまま素通り・冪等）
+  await migrateMemoDocs();
 
   onProgress?.({ phase: 'index', detail: '索引再構築中' });
   await clearIndex();

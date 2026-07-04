@@ -10,7 +10,9 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  navMode: 'tap',
+  // v1.6.0: 規定を連続スクロールに（開いた瞬間から縦スクロールで読める）。
+  // ユーザーが明示的に選んだモードは meta 側の値が勝つので保持される。
+  navMode: 'scroll',
 };
 
 export function useSettings(): Settings {

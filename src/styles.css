@@ -732,6 +732,56 @@ body {
   border-radius: 12px;
   font-size: 30px;
 }
+/* ---- リッチメモ（テキスト＋写真インライン） ---- */
+.memoEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+}
+.memoText {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 16px;
+  line-height: 1.55;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  min-height: 44px;
+  padding: 4px 2px;
+}
+.memoText::placeholder {
+  color: var(--fg-dim);
+}
+.memoImage {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  max-width: 420px;
+}
+.memoImage img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.memoImageMissing {
+  padding: 20px;
+  color: var(--fg-dim);
+  font-size: 13px;
+}
+.memoTools {
+  display: flex;
+  gap: 8px;
+  padding-top: 2px;
+  border-top: 1px dashed var(--line);
+}
+
 .photoOcr {
   position: absolute;
   bottom: 4px;
@@ -799,63 +849,166 @@ body {
 }
 
 /* ---- 施策 ---- */
-.campItem {
+/* ---- 施策: 月カレンダー ---- */
+.calHead {
   display: flex;
+  align-items: center;
   gap: 10px;
+  margin: 14px 0 8px;
+}
+.calTitle {
+  font-size: 18px;
+  font-weight: 800;
+  min-width: 7.5em;
+  text-align: center;
+}
+.calToday {
+  margin-left: auto;
+}
+.calendar {
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-left-width: 5px;
-  border-left-color: var(--line);
   border-radius: 14px;
-  padding: 12px 14px;
+  overflow: hidden;
 }
-.campItem.overdue {
-  border-left-color: var(--overdue);
+.calWeekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--line);
 }
-.campItem.soon {
-  border-left-color: var(--soon);
-}
-.campMain {
-  flex: 1;
-  min-width: 0;
-}
-.campTop {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: baseline;
-}
-.campName {
-  font-weight: 700;
-  font-size: 16px;
-}
-.campRemain {
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
+.calWd {
+  text-align: center;
+  font-size: 11px;
   color: var(--fg-dim);
+  padding: 6px 0;
+  font-weight: 700;
 }
-.campItem.overdue .campRemain {
-  color: var(--overdue);
+.calWd.sun {
+  color: #ff8a8a;
 }
-.campItem.soon .campRemain {
-  color: var(--soon);
+.calWd.sat {
+  color: #7db8ff;
 }
-.campMeta {
+.calWeek {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+  min-height: 52px;
+}
+.calWeek:last-child {
+  border-bottom: 0;
+}
+.calDays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.calDay {
+  text-align: center;
+  padding: 4px 0 2px;
+  font-size: 13px;
+}
+.calDay.out {
+  opacity: 0.32;
+}
+.calDayNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+.calDay.today .calDayNum {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+.calLane {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0 2px;
+  padding: 0 2px;
+  margin-top: 3px;
+}
+.calBand {
+  grid-row: 1;
+  min-width: 0;
+  border: 0;
+  min-height: 22px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #dff0ff;
+  background: rgba(62, 166, 255, 0.28);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.calBand.soon {
+  background: rgba(255, 184, 77, 0.24);
+  border-left-color: var(--soon);
+  color: #ffe2b3;
+}
+.calBand.overdue {
+  background: rgba(255, 92, 92, 0.22);
+  border-left-color: var(--overdue);
+  color: #ffc9c9;
+}
+/* 週をまたいで継続する側は角を切って「続いている」ことを示す */
+.calBand.contL {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left-width: 0;
+}
+.calBand.contR {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.calBand:active {
+  filter: brightness(1.3);
+}
+.calLegend {
+  display: flex;
+  gap: 14px;
+  margin: 8px 2px 0;
   font-size: 12px;
   color: var(--fg-dim);
-  margin-top: 2px;
+}
+.calLegend .lg::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  background: rgba(62, 166, 255, 0.5);
+}
+.calLegend .lg.soon::before {
+  background: rgba(255, 184, 77, 0.6);
+}
+.calLegend .lg.overdue::before {
+  background: rgba(255, 92, 92, 0.6);
+}
+.campDetailRemain {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--fg-dim);
+}
+.campDetailRemain.soon {
+  color: var(--soon);
+}
+.campDetailRemain.overdue {
+  color: var(--overdue);
 }
 .campMemo {
   font-size: 14px;
-  margin-top: 6px;
+  margin: 6px 0 10px;
   color: var(--fg);
-}
-.campActions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  justify-content: center;
+  white-space: pre-wrap;
 }
 
 /* ---- バックアップ ---- */
@@ -921,13 +1074,25 @@ body {
   display: flex;
   flex-direction: column;
 }
+/* 上下バーはオーバーレイ（本文の上に重ねる）。タップで出し入れし、本文の再レイアウトは起きない */
 .viewerBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: calc(var(--safe-top) + 6px) 10px 6px;
-  background: var(--bg);
+  background: rgba(11, 15, 20, 0.92);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
+  transition: transform 0.22s ease;
+}
+.viewerRoot.chromeOff .viewerBar {
+  transform: translateY(-100%);
 }
 .viewerTitle {
   flex: 1;
@@ -1050,12 +1215,23 @@ body {
   display: block;
 }
 .viewerNav {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 12px calc(8px + var(--safe-bottom));
-  background: var(--bg);
+  background: rgba(11, 15, 20, 0.92);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border-top: 1px solid var(--line);
+  transition: transform 0.22s ease;
+}
+.viewerRoot.chromeOff .viewerNav {
+  transform: translateY(100%);
 }
 .navBtn {
   min-width: 52px;
@@ -1091,12 +1267,14 @@ body {
   font-size: 14px;
 }
 
-/* ---- 横向き没入(全画面)モード ---- */
+/* ---- tapモード（1ページ全画面表示） ---- */
 .viewerRoot.immersive {
   background: #000;
 }
+/* バーはオーバーレイなので、バー高ぶんの余白を常時確保してページが覆われないようにする
+   （余白は一定＝バーの出し入れで再フィットしない）。上バー高= safe-top+61px / 下バー高= safe-bottom+69px */
 .viewerRoot.immersive .viewerScroll {
-  padding: 0;
+  padding: calc(var(--safe-top) + 64px) 8px calc(var(--safe-bottom) + 72px);
 }
 .viewerHint {
   position: absolute;
@@ -1362,7 +1540,9 @@ a.btn {
   -webkit-overflow-scrolling: touch;
   position: relative;
   background: #05080b;
-  padding: 8px 0 40px;
+  /* バーはオーバーレイなので、先頭/末尾だけバー高ぶんの余白を入れて初期表示で隠れないようにする
+     （上バー実高= safe-top + 6 + 48 + 6 + 1 = safe-top+61px。それより少し大きく取る） */
+  padding: calc(var(--safe-top) + 64px) 0 calc(var(--safe-bottom) + 76px);
 }
 .scrollPage {
   position: relative;
@@ -1441,6 +1621,13 @@ a.btn {
 }
 .settingStorage {
   margin: 8px 0 12px;
+}
+/* 設定内のボタン群は縦に間隔を空ける（お問い合わせリンクは <a> なので下線を消す） */
+.settings .backupSec .btn.big {
+  margin-bottom: 8px;
+}
+.supportLink {
+  text-decoration: none;
 }
 
 /* ---- pdf.js テキストレイヤ（透明・重ね・ハイライト） ---- */

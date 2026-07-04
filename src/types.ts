@@ -1,6 +1,9 @@
 // アプリ全体のデータ型。永続化(Dexie)・エクスポート(zip)・UI で共有する。
 
-/** マニュアルPDFのメタデータ。メモ(memo)は仕様C「PDF単位の注釈」としてここに持つ。 */
+/** リッチメモのブロック（テキストと写真が縦に混在）。画像バイトは photos テーブルに置き、ここは参照のみ。 */
+export type MemoBlock = { type: 'text'; text: string } | { type: 'image'; photoId: string };
+
+/** マニュアルPDFのメタデータ。メモ(memoDoc)は仕様C「PDF単位の注釈」としてここに持つ。 */
 export interface PdfMeta {
   id: string; // 例: "pdf_<timestamp>_<rand>"
   title: string; // 表示名（既定はファイル名から拡張子除去）
@@ -11,7 +14,8 @@ export interface PdfMeta {
   favorite: boolean;
   category?: string; // 分類（1つ）。未設定/空は「未分類」扱い
   tags: string[];
-  memo: string; // テキストメモ
+  memo: string; // memoDoc のテキスト部分を連結した派生値（検索索引・後方互換用）
+  memoDoc?: MemoBlock[]; // リッチメモ本体（v1.6.0〜）。旧データは起動時に memo/写真から移行
   createdAt: number; // 取り込み時刻(ms)
   updatedAt: number;
 }

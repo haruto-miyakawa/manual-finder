@@ -11,7 +11,7 @@ import {
   persistNow,
   rebuildFromPages,
 } from '../search/searchIndex';
-import type { PdfMeta, PageRow, PhotoRow, Campaign } from '../types';
+import type { PdfMeta, PageRow, PhotoRow, Campaign, MemoBlock } from '../types';
 
 export function newId(prefix: string): string {
   const rand =
@@ -53,6 +53,7 @@ export async function importPdfFile(
     category: '',
     tags: [],
     memo: '',
+    memoDoc: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -129,6 +130,44 @@ export async function setTitle(id: string, title: string): Promise<void> {
 export async function setMemo(id: string, memo: string): Promise<void> {
   await db.pdfs.update(id, { memo, updatedAt: Date.now() });
   upsertTextDoc(`m:${id}`, memo); // メモも検索対象に
+}
+
+// ---- リッチメモ（テキスト＋写真インライン） ----
+
+/** memoDoc からプレーンテキスト部分を抽出（検索索引・スニペット用の派生値）。 */
+export function memoDocText(doc: MemoBlock[]): string {
+  return doc
+    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n')
+    .trim();
+}
+
+/** リッチメモを保存。派生の memo（プレーン文字列）と検索索引も同時に更新する。 */
+export async function setMemoDoc(id: string, doc: MemoBlock[]): Promise<void> {
+  const memo = memoDocText(doc);
+  await db.pdfs.update(id, { memoDoc: doc, memo, updatedAt: Date.now() });
+  upsertTextDoc(`m:${id}`, memo);
+}
+
+/**
+ * 旧形式（プレーン memo ＋ 別枠写真）→ memoDoc への移行。
+ * memoDoc 未設定の行だけ対象なので何度呼んでも安全（起動時・バックアップ取込後に呼ぶ）。
+ * 旧メモは先頭のtextブロック、旧写真は createdAt 順に後ろへ image ブロックとして連結する。
+ */
+export async function migrateMemoDocs(): Promise<number> {
+  const pdfs = await db.pdfs.toArray();
+  let migrated = 0;
+  for (const p of pdfs) {
+    if (p.memoDoc !== undefined) continue;
+    const photos = await db.photos.where('pdfId').equals(p.id).sortBy('createdAt');
+    const doc: MemoBlock[] = [];
+    if (p.memo && p.memo.trim()) doc.push({ type: 'text', text: p.memo });
+    for (const ph of photos) doc.push({ type: 'image', photoId: ph.id });
+    await db.pdfs.update(p.id, { memoDoc: doc });
+    migrated++;
+  }
+  return migrated;
 }
 export async function setTags(id: string, tags: string[]): Promise<void> {
   const clean = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));

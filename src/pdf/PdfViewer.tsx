@@ -49,6 +49,8 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageInput, setPageInput] = useState(String(initialPage));
+  // 上下バー: タップで表示/非表示をトグル（両モード共通・初期は表示）。
+  // バーはオーバーレイ配置なので、トグルしても本文の再レイアウトは起きない。
   const [chrome, setChrome] = useState(true);
   const [hintVisible, setHintVisible] = useState(true);
   const [noteText, setNoteText] = useState('');
@@ -58,22 +60,16 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const [jump, setJump] = useState({ page: initialPage, token: 0 });
 
   const scrollMode = navMode === 'scroll';
-  const barsVisible = scrollMode || chrome;
-  const immersive = navMode === 'tap' && !chrome;
   const segs = querySegments(highlightQuery);
+  const toggleChrome = useCallback(() => setChrome((c) => !c), []);
 
-  // tap=没入(縦横とも・下部バーは出さない) / scroll=バー表示
+  // バー非表示にした直後、操作ヒントを数秒だけ表示して自動で消す
   useEffect(() => {
-    setChrome(scrollMode);
-  }, [scrollMode]);
-
-  // 没入時のヒントは開いてから約3秒で自動的に消す
-  useEffect(() => {
-    if (loading || !immersive) return;
+    if (loading || chrome) return;
     setHintVisible(true);
     const t = setTimeout(() => setHintVisible(false), 3000);
     return () => clearTimeout(t);
-  }, [immersive, loading]);
+  }, [chrome, loading]);
 
   // ---- ドキュメント読み込み ----
   useEffect(() => {
@@ -177,8 +173,12 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
 
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
     const base = page.getViewport({ scale: 1 });
-    const availW = scroll.clientWidth - 16;
-    const availH = scroll.clientHeight - 16;
+    // コンテナのパディング（＝オーバーレイのバー高ぶんの余白）を差し引いた領域にフィットさせる
+    const cs = getComputedStyle(scroll);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const availW = scroll.clientWidth - padX;
+    const availH = scroll.clientHeight - padY;
     const fitW = availW > 0 ? availW / base.width : 1;
     const fitH = availH > 0 ? availH / base.height : fitW;
     const effScale = Math.min(fitW, fitH) * zoom;
@@ -220,7 +220,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     if (!scrollMode && !loading && !error) void renderPage();
   }, [scrollMode, loading, error, renderPage]);
 
-  // 画面変化・バー表示切替で再フィット（tapモード）
+  // 画面変化で再フィット（tapモード）。バーはオーバーレイなのでトグルでは再フィット不要。
   const renderPageRef = useRef(renderPage);
   renderPageRef.current = renderPage;
   useEffect(() => {
@@ -234,7 +234,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
     };
-  }, [scrollMode, chrome, loading, error]);
+  }, [scrollMode, loading, error]);
 
   // ---- ズーム ----
   const zoomIn = () => setZoom((z) => clampZoom(z * 1.25));
@@ -297,7 +297,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
       const w = scrollRef.current?.clientWidth ?? window.innerWidth;
       if (o.x < w * 0.33) prev();
       else if (o.x > w * 0.67) next();
-      else setChrome((c) => !c);
+      else toggleChrome();
     }
   };
 
@@ -313,8 +313,8 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   }, [next, prev, onClose]);
 
   return (
-    <div className={`viewerRoot${immersive ? ' immersive' : ''}`}>
-      {/* 上バーは常時表示（閉じる/ズーム/メモに常にアクセスできるように）。下バー(スライダー)だけ出し入れする */}
+    <div className={`viewerRoot${navMode === 'tap' ? ' immersive' : ''}${chrome ? '' : ' chromeOff'}`}>
+      {/* 上下バーはオーバーレイ配置。画面の単純タップで表示/非表示をトグル（初期は表示） */}
       <header className="viewerBar">
           <button className="btn iconBtn" onClick={onClose} aria-label="閉じる">
             ✕
@@ -360,6 +360,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
           notedPages={notedPages}
           onPageChange={onScrollPageChange}
           onGoto={goToPage}
+          onTap={toggleChrome}
         />
       ) : (
         <div
@@ -377,49 +378,49 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
         </div>
       )}
 
-      {barsVisible ? (
-        <footer className="viewerNav">
-          <button className="btn navBtn" onClick={prev} disabled={pageNum <= 1} aria-label="前のページ">
-            ‹
-          </button>
+      <footer className="viewerNav">
+        <button className="btn navBtn" onClick={prev} disabled={pageNum <= 1} aria-label="前のページ">
+          ‹
+        </button>
+        <input
+          className="pageSlider"
+          type="range"
+          min={1}
+          max={Math.max(1, numPages)}
+          value={Math.min(pageNum, numPages || 1)}
+          onChange={(e) => goToPage(Number(e.target.value))}
+          aria-label="ページを選択"
+        />
+        <div className="pageJump">
           <input
-            className="pageSlider"
-            type="range"
-            min={1}
-            max={Math.max(1, numPages)}
-            value={Math.min(pageNum, numPages || 1)}
-            onChange={(e) => goToPage(Number(e.target.value))}
-            aria-label="ページを選択"
+            className="pageInput"
+            inputMode="numeric"
+            value={pageInput}
+            onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ''))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') goToPage(Number(pageInput) || 1);
+            }}
+            onBlur={() => goToPage(Number(pageInput) || 1)}
+            aria-label="ページ番号"
           />
-          <div className="pageJump">
-            <input
-              className="pageInput"
-              inputMode="numeric"
-              value={pageInput}
-              onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ''))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') goToPage(Number(pageInput) || 1);
-              }}
-              onBlur={() => goToPage(Number(pageInput) || 1)}
-              aria-label="ページ番号"
-            />
-            <span className="pageTotal">/ {numPages || '—'}</span>
-          </div>
-          <button
-            className="btn navBtn"
-            onClick={next}
-            disabled={numPages > 0 && pageNum >= numPages}
-            aria-label="次のページ"
-          >
-            ›
-          </button>
-        </footer>
-      ) : (
-        hintVisible && (
-          <div className="viewerHint" aria-hidden>
-            ▲ 下から引き上げて操作　·　左右タップでページ送り　·　{pageNum} / {numPages}
-          </div>
-        )
+          <span className="pageTotal">/ {numPages || '—'}</span>
+        </div>
+        <button
+          className="btn navBtn"
+          onClick={next}
+          disabled={numPages > 0 && pageNum >= numPages}
+          aria-label="次のページ"
+        >
+          ›
+        </button>
+      </footer>
+
+      {!chrome && hintVisible && (
+        <div className="viewerHint" aria-hidden>
+          {navMode === 'tap'
+            ? `中央タップでバー表示　·　左右タップでページ送り　·　${pageNum} / ${numPages}`
+            : `画面タップで操作バーを表示　·　${pageNum} / ${numPages}`}
+        </div>
       )}
 
       {noteOpen && (
@@ -457,6 +458,7 @@ function ScrollPdf({
   notedPages,
   onPageChange,
   onGoto,
+  onTap,
 }: {
   doc: PDFDocumentProxy;
   numPages: number;
@@ -466,6 +468,7 @@ function ScrollPdf({
   notedPages: Set<number>;
   onPageChange: (p: number) => void;
   onGoto: (p: number) => void;
+  onTap: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const slots = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -636,13 +639,15 @@ function ScrollPdf({
     };
   }, [onPageChange]);
 
-  // 明示ジャンプ（スライダー/前後/リンク）でスクロール
+  // 明示ジャンプ（スライダー/前後/リンク）でスクロール。
+  // container の padding-top ≒ 上バー高なので、その分引いてページ先頭がバー直下に来るようにする。
   useEffect(() => {
     const slot = slots.current.get(jump.page);
     const container = containerRef.current;
     if (slot && container) {
       curRef.current = jump.page;
-      container.scrollTo({ top: slot.offsetTop - 6 });
+      const pt = parseFloat(getComputedStyle(container).paddingTop) || 0;
+      container.scrollTo({ top: slot.offsetTop - pt });
     }
   }, [jump]);
 
@@ -663,8 +668,16 @@ function ScrollPdf({
     });
   }, [notedPages]);
 
+  // 単純タップ（クリック）でバー表示切替。スクロール/フリック/ピンチでは click は発火しないので競合しない。
+  const onContainerClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest?.('.pdfLink')) return; // PDF内リンクは除外
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return; // テキスト選択中は無視
+    onTap();
+  };
+
   return (
-    <div className="scrollPages" ref={containerRef}>
+    <div className="scrollPages" ref={containerRef} onClick={onContainerClick}>
       {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
         <div
           key={n}

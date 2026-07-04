@@ -27,9 +27,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      // 開発時もSWを有効化してオフライン動作を早期検証できるようにする
+      // 更新は src/pwa.ts が制御（1日以上空いた起動時のみ確認・未操作時のみ即適用）。
+      // 'prompt' + skipWaiting:false で、稼働中セッションの足元でキャッシュが差し替わらないようにする。
+      registerType: 'prompt',
+      injectRegister: false,
       devOptions: { enabled: false },
       includeAssets: [
         'icons/apple-touch-icon-180.png',
@@ -67,7 +68,9 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: true,
+        // 新SWは「待機」させ、適用タイミングは src/pwa.ts が決める
+        // （起動直後・未操作なら即適用、それ以外は次回起動時）。
+        skipWaiting: false,
         // 同一オリジンの OCR 資産(/tesseract/)のみ実行時キャッシュ。外部オリジンには /tesseract/ の
         // リクエストが存在しない（アプリが同一オリジンからしか読まない）ため外部通信は発生しない。
         runtimeCaching: [
