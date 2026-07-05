@@ -54,6 +54,7 @@ export async function importPdfFile(
     tags: [],
     memo: '',
     memoDoc: [],
+    unread: true, // 新規追加は未読（開いたら既読）
     createdAt: now,
     updatedAt: now,
   };
@@ -120,6 +121,11 @@ export async function getPdfBytes(id: string): Promise<ArrayBuffer | null> {
 // ---- PDFメタ更新 ----
 export async function setFavorite(id: string, favorite: boolean): Promise<void> {
   await db.pdfs.update(id, { favorite, updatedAt: Date.now() });
+}
+/** 未読→既読（ビューアで開いた時に呼ぶ）。updatedAt は触らない（内容の変更ではないため）。 */
+export async function markRead(id: string): Promise<void> {
+  const p = await db.pdfs.get(id);
+  if (p?.unread) await db.pdfs.update(id, { unread: false });
 }
 export async function setTitle(id: string, title: string): Promise<void> {
   const t = title.trim() || '(無題)';

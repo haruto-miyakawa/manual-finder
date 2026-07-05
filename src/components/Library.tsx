@@ -1,19 +1,25 @@
 // PDFライブラリ。お気に入りは最上部に大きめタイル。取り込み・タグ絞り込み・詳細/ビューア導線。
+// 共有: 選択モードでPDFを選び、その分だけをzipに書き出せる（AirDrop等のローカル受け渡し用）。
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, setMeta } from '../db/db';
 import { importPdfFile, setFavorite, type ImportProgress } from '../db/repo';
 import { ensureThumb } from '../pdf/thumb';
 import { ocrPdfPages, terminateOcr } from '../ocr';
+import { exportPartial, downloadBlob, shareFileName } from '../backup/backup';
+import { ExportIcon } from './icons';
 import type { PdfMeta } from '../types';
 
 interface Props {
   onOpenViewer: (pdfId: string, page: number, query: string) => void;
   onOpenDetail: (pdfId: string) => void;
   onChanged: () => void;
+  /** 取り込み直後に「未分類」を一時的に開く状態（App保持・セッション内のみ。手動で閉じたら解除） */
+  uncatOpenOnce: boolean;
+  setUncatOpenOnce: (v: boolean) => void;
 }
 
-export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
+export function Library({ onOpenViewer, onOpenDetail, onChanged, uncatOpenOnce, setUncatOpenOnce }: Props) {
   const pdfs = useLiveQuery(() => db.pdfs.orderBy('createdAt').reverse().toArray(), [], []);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState<{ name: string; page: number; total: number; idx: number; count: number } | null>(null);
@@ -21,6 +27,10 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
   // カテゴリ開閉: 規定は全部閉。開いているカテゴリ名を meta に保存し次回起動時に復元。
   const openCatsRow = useLiveQuery(() => db.meta.get('libCatOpen'), [], undefined);
   const openCats = new Set((openCatsRow?.value as string[] | undefined) ?? []);
+  // 共有用の選択モード
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sharing, setSharing] = useState(false);
   // スキャンPDFのOCR: 取り込み後に確認 → 実行中の進捗
   const [ocrPrompt, setOcrPrompt] = useState<{ items: PdfMeta[] } | null>(null);
   const [ocrRunning, setOcrRunning] = useState<{ name: string; page: number; total: number; idx: number; count: number } | null>(null);
@@ -52,12 +62,45 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
     return names.map((name) => ({ name, items: map.get(name)! }));
   }, [listed]);
 
+  /** 表示上の開閉（保存状態 ∪ 未分類の一時オープン） */
+  const isCatOpen = (name: string) => openCats.has(name) || (name === UNCAT && uncatOpenOnce);
+
   const toggleCat = (name: string) => {
+    if (selectMode) return; // 選択モード中は全展開表示なので、裏で開閉状態を変えない
+    const effOpen = isCatOpen(name);
+    if (name === UNCAT) setUncatOpenOnce(false); // 手動操作したら一時オープンは解除し保存状態に従う
     const next = new Set(openCats);
-    if (next.has(name)) next.delete(name);
+    if (effOpen) next.delete(name);
     else next.add(name);
     void setMeta('libCatOpen', Array.from(next));
   };
+
+  // ---- 共有（部分エクスポート） ----
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  async function doShare() {
+    if (selected.size === 0) return;
+    setSharing(true);
+    try {
+      const blob = await exportPartial(Array.from(selected));
+      downloadBlob(blob, shareFileName(selected.size));
+      setSelectMode(false);
+      setSelected(new Set());
+      alert(
+        `${selected.size}件を書き出しました（${(blob.size / 1024 / 1024).toFixed(1)}MB）。\n「ファイル」に保存されるので、AirDrop等で同僚に渡せます。受け取った側は「バックアップ」タブ →「ファイルを選んで取り込む」→「追加で取り込む」です。`,
+      );
+    } catch (e) {
+      alert(`書き出し失敗: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSharing(false);
+    }
+  }
 
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -85,6 +128,8 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
     setImporting(null);
     onChanged();
     if (fileRef.current) fileRef.current.value = '';
+    // 取り込み直後は「未分類」を開いて、新着（未読マーク付き）がすぐ見えるように
+    if (imported.length > 0) setUncatOpenOnce(true);
     // 本文テキストの無いスキャンPDFがあれば、OCR（端末内・外部送信なし）を確認
     const scanned = imported.filter((m) => !m.hasText);
     if (scanned.length > 0) setOcrPrompt({ items: scanned });
@@ -112,9 +157,37 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
   return (
     <div className="library">
       <div className="libActions">
-        <button className="btn primary big" onClick={() => fileRef.current?.click()}>
-          ＋ PDFを取り込む
-        </button>
+        {!selectMode ? (
+          <div className="libActionRow">
+            <button className="btn primary big libImportBtn" onClick={() => fileRef.current?.click()}>
+              ＋ PDFを取り込む
+            </button>
+            <button
+              className="btn shareBtn"
+              onClick={() => {
+                setSelected(new Set());
+                setSelectMode(true);
+              }}
+              disabled={pdfs.length === 0}
+              title="選んだPDFだけをzipに書き出して同僚に渡す"
+            >
+              <ExportIcon size={18} />
+              共有
+            </button>
+          </div>
+        ) : (
+          <div className="shareBar">
+            <span className="shareCount">
+              共有するPDFを選択 <b>{selected.size}</b> 件
+            </span>
+            <button className="btn small" onClick={() => setSelectMode(false)}>
+              キャンセル
+            </button>
+            <button className="btn primary small" disabled={selected.size === 0} onClick={() => void doShare()}>
+              書き出す
+            </button>
+          </div>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -131,7 +204,10 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
           <div className="favGrid">
             {favorites.map((p) => (
               <button key={p.id} className="favTile" onClick={() => onOpenViewer(p.id, 1, '')}>
-                <span className="favTileTitle">{p.title}</span>
+                <span className="favTileTitle">
+                  {p.unread && <span className="unreadBadge">未読</span>}
+                  {p.title}
+                </span>
                 <span className="favTileMeta">{p.pageCount}p</span>
               </button>
             ))}
@@ -160,7 +236,8 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
         {tagFilter && listed.length === 0 && <div className="empty">「{tagFilter}」に該当なし。</div>}
 
         {groups.map((g) => {
-          const isOpen = openCats.has(g.name);
+          // 選択モード中は全カテゴリを開く（どのPDFも選べるように）
+          const isOpen = selectMode || isCatOpen(g.name);
           return (
             <div key={g.name} className="catSection">
               <button
@@ -170,6 +247,7 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
               >
                 <span className="catCaret">{isOpen ? '▾' : '▸'}</span>
                 <span className="catName">{g.name}</span>
+                {g.items.some((p) => p.unread) && <span className="catUnreadDot" aria-label="未読あり" />}
                 <span className="catCount">{g.items.length}</span>
               </button>
               {isOpen && (
@@ -178,6 +256,9 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
                     <PdfRow
                       key={p.id}
                       pdf={p}
+                      selectMode={selectMode}
+                      selected={selected.has(p.id)}
+                      onToggleSelect={() => toggleSelect(p.id)}
                       onOpen={() => onOpenViewer(p.id, 1, '')}
                       onDetail={() => onOpenDetail(p.id)}
                       onToggleFav={() => void setFavorite(p.id, !p.favorite)}
@@ -201,6 +282,15 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
               <br />
               {importing.total > 0 ? `テキスト抽出 ${importing.page}/${importing.total}p` : '準備中…'}
             </div>
+          </div>
+        </div>
+      )}
+
+      {sharing && (
+        <div className="overlay">
+          <div className="modalCard">
+            <div className="spinnerBig" />
+            <div className="importText">共有用に書き出し中…</div>
           </div>
         </div>
       )}
@@ -254,33 +344,50 @@ export function Library({ onOpenViewer, onOpenDetail, onChanged }: Props) {
 
 function PdfRow({
   pdf,
+  selectMode,
+  selected,
+  onToggleSelect,
   onOpen,
   onDetail,
   onToggleFav,
 }: {
   pdf: PdfMeta;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onOpen: () => void;
   onDetail: () => void;
   onToggleFav: () => void;
 }) {
   return (
-    <li className="pdfRow">
-      <button className={`starBtn${pdf.favorite ? ' on' : ''}`} onClick={onToggleFav} aria-label="お気に入り">
-        {pdf.favorite ? '★' : '☆'}
-      </button>
-      <button className="pdfMain" onClick={onOpen}>
+    <li className={`pdfRow${selectMode && selected ? ' selected' : ''}`}>
+      {selectMode ? (
+        <span className={`selBox${selected ? ' on' : ''}`} aria-hidden>
+          {selected ? '✓' : ''}
+        </span>
+      ) : (
+        <button className={`starBtn${pdf.favorite ? ' on' : ''}`} onClick={onToggleFav} aria-label="お気に入り">
+          {pdf.favorite ? '★' : '☆'}
+        </button>
+      )}
+      <button className="pdfMain" onClick={selectMode ? onToggleSelect : onOpen}>
         <PdfThumb pdfId={pdf.id} />
         <span className="pdfInfo">
-          <span className="pdfTitle">{pdf.title}</span>
+          <span className="pdfTitle">
+            {pdf.unread && <span className="unreadBadge">未読</span>}
+            {pdf.title}
+          </span>
           <span className="pdfMeta">
             {pdf.pageCount}p{pdf.tags.length > 0 ? ` ・ ${pdf.tags.join(' / ')}` : ''}
             {!pdf.hasText ? ' ・ テキスト無(検索不可)' : ''}
           </span>
         </span>
       </button>
-      <button className="detailBtn" onClick={onDetail} aria-label="詳細">
-        ⋯
-      </button>
+      {!selectMode && (
+        <button className="detailBtn" onClick={onDetail} aria-label="詳細">
+          ⋯
+        </button>
+      )}
     </li>
   );
 }

@@ -16,6 +16,7 @@ export interface PdfMeta {
   tags: string[];
   memo: string; // memoDoc のテキスト部分を連結した派生値（検索索引・後方互換用）
   memoDoc?: MemoBlock[]; // リッチメモ本体（v1.6.0〜）。旧データは起動時に memo/写真から移行
+  unread?: boolean; // 未読マーク（v1.7.0〜）。新規追加時 true、開いたら false
   createdAt: number; // 取り込み時刻(ms)
   updatedAt: number;
 }

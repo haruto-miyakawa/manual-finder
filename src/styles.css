@@ -331,6 +331,91 @@ body {
 .libActions {
   margin-top: 4px;
 }
+.libActionRow {
+  display: flex;
+  gap: 8px;
+}
+.libImportBtn {
+  flex: 1;
+}
+.shareBtn {
+  flex: 0 0 auto;
+  min-height: 56px;
+  gap: 6px;
+}
+/* 共有の選択モードバー */
+.shareBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 8px 12px;
+  min-height: 56px;
+}
+.shareCount {
+  flex: 1;
+  font-size: 14px;
+  color: var(--fg);
+}
+/* 選択チェック */
+.selBox {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 2px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-ink);
+  font-weight: 800;
+  flex: 0 0 auto;
+  align-self: center;
+}
+.selBox.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.pdfRow.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 12px;
+}
+/* 未読マーク */
+.unreadBadge {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 8px;
+  padding: 1px 7px;
+  margin-right: 6px;
+  vertical-align: 2px;
+  white-space: nowrap;
+}
+.catUnreadDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+/* 取り込みモード選択モーダル */
+.importModeCard {
+  max-width: 92vw;
+  width: 440px;
+  text-align: left;
+  gap: 8px;
+}
+.importModeCard .btn.big {
+  width: 100%;
+}
+.modeHint {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
 .favGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

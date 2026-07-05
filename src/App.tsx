@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getMeta } from './db/db';
 import { initSearchIndex } from './search/searchIndex';
-import { requestPersistentStorage, migrateMemoDocs } from './db/repo';
+import { requestPersistentStorage, migrateMemoDocs, markRead } from './db/repo';
 import { SearchBar } from './components/SearchBar';
 import { SearchResults } from './components/SearchResults';
 import { Library } from './components/Library';
@@ -37,6 +37,9 @@ export default function App() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [storageKey, setStorageKey] = useState(0);
   const [dismissBanner, setDismissBanner] = useState(false);
+  // 新規取り込み/マージ受信直後だけ「未分類」を開く一時状態（セッション内のみ・保存しない）。
+  // Libraryはタブ切替でアンマウントされるためAppが保持し、手動で閉じたら解除する。
+  const [uncatOpenOnce, setUncatOpenOnce] = useState(false);
   const settings = useSettings();
 
   const pdfCount = useLiveQuery(() => db.pdfs.count(), [], 0);
@@ -64,6 +67,7 @@ export default function App() {
   async function openViewer(pdfId: string, page: number, q: string) {
     const meta = await db.pdfs.get(pdfId);
     setViewer({ pdfId, page, query: q, title: meta?.title ?? '' });
+    void markRead(pdfId); // 開いたら既読（未読マークを消す）
   }
 
   const backupNeeded =
@@ -118,10 +122,17 @@ export default function App() {
                 onOpenViewer={openViewer}
                 onOpenDetail={(id) => setDetailId(id)}
                 onChanged={() => setStorageKey((k) => k + 1)}
+                uncatOpenOnce={uncatOpenOnce}
+                setUncatOpenOnce={setUncatOpenOnce}
               />
             )}
             {tab === 'campaigns' && <Campaigns onOpenViewer={openViewer} />}
-            {tab === 'backup' && <BackupPanel onChanged={() => setStorageKey((k) => k + 1)} />}
+            {tab === 'backup' && (
+              <BackupPanel
+                onChanged={() => setStorageKey((k) => k + 1)}
+                onMerged={() => setUncatOpenOnce(true)}
+              />
+            )}
             {tab === 'settings' && <SettingsPanel />}
           </>
         )}

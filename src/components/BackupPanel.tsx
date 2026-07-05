@@ -1,9 +1,11 @@
-// バックアップ（中核機能）。ワンタップ・エクスポート / インポート(全置換で完全復元)。
-// 任意でパスワード暗号化（安全な接続時のみ有効）。
+// バックアップ（中核機能）。ワンタップ・エクスポート / インポート。
+// インポートは「マージ（追加・既存を消さない）」と「全置換（完全復元）」を選択制にし、
+// AirDrop等で受け取った共有zipの追加取り込みと、バックアップからの復元を両立する。
 import { useRef, useState } from 'react';
 import {
   exportAll,
   importAllReplace,
+  importAllMerge,
   downloadBlob,
   backupFileName,
   cryptoAvailable,
@@ -15,12 +17,15 @@ import { LockIcon, ExportIcon, ImportIcon, RebuildIcon } from './icons';
 
 interface Props {
   onChanged: () => void;
+  /** マージで新規PDFが追加されたとき（ライブラリの「未分類」を一時的に開くシグナル） */
+  onMerged?: () => void;
 }
 
-export function BackupPanel({ onChanged }: Props) {
+export function BackupPanel({ onChanged, onMerged }: Props) {
   const importRef = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<string>('');
   const [busy, setBusy] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null); // モード選択待ちのファイル
   const canEncrypt = cryptoAvailable();
   const [encrypt, setEncrypt] = useState(canEncrypt);
   const [password, setPassword] = useState('');
@@ -51,36 +56,65 @@ export function BackupPanel({ onChanged }: Props) {
     }
   }
 
-  async function doImport(file: File) {
-    if (!confirm('現在の全データを、選んだバックアップで置き換えます。よろしいですか？')) return;
+  async function askPassphrase(file: File): Promise<string | null | undefined> {
+    // undefined=不要 / string=入力あり / null=中止
+    if (!(await peekBackupEncrypted(file))) return undefined;
+    if (!canEncrypt) throw new Error('暗号化ファイルの復号には安全な接続(HTTPS/localhost)が必要です。');
+    const pw = window.prompt('このファイルは暗号化されています。復号パスワードを入力してください。');
+    return pw == null ? null : pw;
+  }
+
+  const progressLabel = (p: { phase: string; detail?: string }) => {
+    const label: Record<string, string> = {
+      read: '読み込み中…',
+      parse: p.detail === '復号中' ? '復号中…' : '解析中…',
+      write: p.detail ?? '書き込み中…',
+      index: '検索索引を更新中…',
+      done: '完了',
+    };
+    setStatus(label[p.phase] ?? '処理中…');
+  };
+
+  /** マージ（追加取り込み・既存は消さない） */
+  async function doMerge(file: File) {
+    setBusy(true);
+    setStatus('追加取り込み中…');
+    try {
+      const pw = await askPassphrase(file);
+      if (pw === null) {
+        setStatus('取り込みを中止しました。');
+        return;
+      }
+      const sum = await importAllMerge(file, progressLabel, pw);
+      setStatus(
+        `追加取り込み完了: 追加 ${sum.added}件${sum.skipped > 0 ? ` / 重複スキップ ${sum.skipped}件` : ''}。追加分は「未分類」に未読マーク付きで入っています。`,
+      );
+      onChanged();
+      if (sum.added > 0) onMerged?.();
+    } catch (e) {
+      if (e instanceof BackupEncryptedError) {
+        setStatus('暗号化ファイルです。パスワードを入力して再度お試しください。');
+      } else {
+        setStatus(`取り込み失敗: ${e instanceof Error ? e.message : e}`);
+      }
+    } finally {
+      setBusy(false);
+      if (importRef.current) importRef.current.value = '';
+    }
+  }
+
+  /** 全置換（バックアップからの完全復元） */
+  async function doReplace(file: File) {
+    if (!confirm('現在の全データを消して、選んだバックアップの内容に置き換えます。本当によろしいですか？')) return;
     setBusy(true);
     setStatus('インポート中…');
     try {
-      let passphrase: string | undefined;
-      if (await peekBackupEncrypted(file)) {
-        if (!canEncrypt) throw new Error('暗号化バックアップの復号には安全な接続(HTTPS/localhost)が必要です。');
-        const pw = window.prompt('このバックアップは暗号化されています。復号パスワードを入力してください。');
-        if (pw == null) {
-          setStatus('インポートを中止しました。');
-          setBusy(false);
-          return;
-        }
-        passphrase = pw;
+      const pw = await askPassphrase(file);
+      if (pw === null) {
+        setStatus('インポートを中止しました。');
+        return;
       }
-      const sum = await importAllReplace(
-        file,
-        (p) => {
-          const label: Record<string, string> = {
-            read: '読み込み中…',
-            parse: p.detail === '復号中' ? '復号中…' : '解析中…',
-            write: '書き込み中…',
-            index: '検索索引を再構築中…',
-            done: '完了',
-          };
-          setStatus(label[p.phase] ?? '処理中…');
-        },
-        passphrase,
-      );
+      const sum = await importAllReplace(file, progressLabel, pw);
       setStatus(
         `インポート完了: PDF ${sum.pdfs}件 / ページ ${sum.pages} / 写真 ${sum.photos} / 施策 ${sum.campaigns}`,
       );
@@ -154,13 +188,14 @@ export function BackupPanel({ onChanged }: Props) {
       </section>
 
       <section className="backupSec">
-        <h2 className="secTitle">インポート（全置換で復元）</h2>
+        <h2 className="secTitle">取り込み（マージ / 復元）</h2>
         <p className="hint">
-          バックアップから完全復元します。現在のデータは置き換わります。暗号化ファイルはパスワードを求めます。
+          AirDrop等で受け取った共有zipや、バックアップのファイルを取り込みます。
+          ファイルを選ぶと「追加（マージ）」か「全置換（復元）」かを選べます。
         </p>
         <button className="btn big" disabled={busy} onClick={() => importRef.current?.click()}>
           <ImportIcon size={20} />
-          バックアップを選んで復元
+          ファイルを選んで取り込む
         </button>
         <input
           ref={importRef}
@@ -169,10 +204,49 @@ export function BackupPanel({ onChanged }: Props) {
           hidden
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) void doImport(f);
+            e.target.value = ''; // キャンセル後に同じファイルを選び直せるように即クリア
+            if (f) setPendingFile(f);
           }}
         />
       </section>
+
+      {pendingFile && (
+        <div className="overlay" onClick={() => setPendingFile(null)}>
+          <div className="modalCard importModeCard" onClick={(e) => e.stopPropagation()}>
+            <div className="ocrTitle">どう取り込みますか？</div>
+            <div className="ocrBody">
+              <b>{pendingFile.name}</b>
+            </div>
+            <button
+              className="btn primary big"
+              onClick={() => {
+                const f = pendingFile;
+                setPendingFile(null);
+                void doMerge(f);
+              }}
+            >
+              追加で取り込む（マージ・おすすめ）
+            </button>
+            <p className="hint modeHint">
+              既存のデータは消えません。同僚から受け取ったPDFの取り込みはこちら。まったく同じもの（本体もメモも一致）は重複として飛ばします。
+            </p>
+            <button
+              className="btn danger big"
+              onClick={() => {
+                const f = pendingFile;
+                setPendingFile(null);
+                void doReplace(f);
+              }}
+            >
+              全置換で復元（既存データは消える）
+            </button>
+            <p className="hint modeHint">バックアップから丸ごと元に戻すときだけ。現在のデータは置き換わります。</p>
+            <button className="btn ghost big" onClick={() => setPendingFile(null)}>
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
 
       <section className="backupSec">
         <h2 className="secTitle">メンテナンス</h2>
