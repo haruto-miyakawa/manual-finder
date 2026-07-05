@@ -2,7 +2,7 @@
 //  - 操作モード: tap=左右タップでページ送り（縦横どちらでも・横は全画面）/ scroll=連続スクロール
 //  - ズーム(ボタン/ピンチ)、検索語ハイライト、ページジャンプ、PDF内リンク(ページジャンプ注釈)対応
 //  外部通信なし。
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TextLayer, Util } from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import { loadPdfDocument } from './pdfSetup';
@@ -64,12 +64,22 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const [jump, setJump] = useState({ page: initialPage, token: 0 });
 
   const scrollMode = navMode === 'scroll';
-  const segs = querySegments(highlightQuery);
+  // メモ化必須: 毎レンダーで新配列を作ると renderSlot→rerenderVisible の依存が毎回変わり、
+  // タップ（バー切替）やスクロール中のページ番号更新のたびに可視ページのcanvasが
+  // 全消去→再描画されて「ちかちか」する。
+  const segs = useMemo(() => querySegments(highlightQuery), [highlightQuery]);
   const toggleChrome = useCallback(() => setChrome((c) => !c), []);
 
-  // バー非表示にした直後、操作ヒントを数秒だけ表示して自動で消す
+  // 操作ヒントは「開いて最初の1回」だけ数秒表示して自動で消す
+  // （バーを隠すたびに毎回出すと、タップのたびにヒントが点滅してうるさいため）。
+  const hintShownRef = useRef(false);
   useEffect(() => {
     if (loading || chrome) return;
+    if (hintShownRef.current) {
+      setHintVisible(false); // タイマー中断後の再表示を防ぐ
+      return;
+    }
+    hintShownRef.current = true;
     setHintVisible(true);
     const t = setTimeout(() => setHintVisible(false), 3000);
     return () => clearTimeout(t);
@@ -186,22 +196,27 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     const effScale = Math.min(fitW, fitH) * zoom;
     const viewport = page.getViewport({ scale: effScale });
 
-    wrap.style.width = `${viewport.width}px`;
-    wrap.style.height = `${viewport.height}px`;
-    wrap.style.setProperty('--total-scale-factor', String(effScale));
-    canvas.width = Math.floor(viewport.width * dpr);
-    canvas.height = Math.floor(viewport.height * dpr);
-    canvas.style.width = `${viewport.width}px`;
-    canvas.style.height = `${viewport.height}px`;
-
+    // ちかちか防止: 先に表示中のcanvasを消さず、オフスクリーンに描いて完成後に一括反映する
+    const temp = document.createElement('canvas');
+    temp.width = Math.floor(viewport.width * dpr);
+    temp.height = Math.floor(viewport.height * dpr);
     const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined;
-    const task = page.render({ canvas, viewport, transform });
+    const task = page.render({ canvas: temp, viewport, transform });
     renderTaskRef.current = task;
     try {
       await task.promise;
     } catch {
-      return;
+      return; // キャンセル時は旧表示を維持（空白にしない）
     }
+
+    wrap.style.width = `${viewport.width}px`;
+    wrap.style.height = `${viewport.height}px`;
+    wrap.style.setProperty('--total-scale-factor', String(effScale));
+    canvas.width = temp.width;
+    canvas.height = temp.height;
+    canvas.style.width = `${viewport.width}px`;
+    canvas.style.height = `${viewport.height}px`;
+    canvas.getContext('2d')?.drawImage(temp, 0, 0);
 
     textDiv.innerHTML = '';
     try {
@@ -522,26 +537,31 @@ function ScrollPdf({
       const scale = ((container.clientWidth - 16) / base.width) * zoom;
       const vp = page.getViewport({ scale });
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // ちかちか防止: 表示中のcanvasは消さず、オフスクリーンに描いて完成後に一括反映
+      const temp = document.createElement('canvas');
+      temp.width = Math.floor(vp.width * dpr);
+      temp.height = Math.floor(vp.height * dpr);
+      tasks.current.get(n)?.cancel();
+      const t = page.render({ canvas: temp, viewport: vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined });
+      tasks.current.set(n, t);
+      try {
+        await t.promise;
+      } catch {
+        return; // キャンセル時は旧表示を維持
+      }
       let canvas = slot.querySelector('canvas') as HTMLCanvasElement | null;
       if (!canvas) {
         canvas = document.createElement('canvas');
         canvas.className = 'viewerCanvas';
         slot.appendChild(canvas);
       }
-      canvas.width = Math.floor(vp.width * dpr);
-      canvas.height = Math.floor(vp.height * dpr);
+      canvas.width = temp.width;
+      canvas.height = temp.height;
       canvas.style.width = `${vp.width}px`;
       canvas.style.height = `${vp.height}px`;
       slot.style.height = `${vp.height}px`;
       slot.style.setProperty('--total-scale-factor', String(scale));
-      tasks.current.get(n)?.cancel();
-      const t = page.render({ canvas, viewport: vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined });
-      tasks.current.set(n, t);
-      try {
-        await t.promise;
-      } catch {
-        return;
-      }
+      canvas.getContext('2d')?.drawImage(temp, 0, 0);
       renderedZoom.current.set(n, zoom);
       let tl = slot.querySelector('.textLayer') as HTMLDivElement | null;
       if (!tl) {

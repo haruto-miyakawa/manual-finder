@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.8.1',
+    date: '2026-07-05',
+    changes: [
+      '不具合修正: PDFビューアでタップのたび・スクロールでページが変わるタイミングで画面がちかちかする問題（表示中のページを消してから描き直していたのを、完成してから一括で差し替える方式に変更）',
+      '操作ヒントはビューアを開いて最初の1回だけ表示するように（バーを隠すたびに点滅しない）',
+    ],
+  },
+  {
     version: '1.8.0',
     date: '2026-07-05',
     changes: [
