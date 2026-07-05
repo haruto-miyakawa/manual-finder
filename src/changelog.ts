@@ -7,6 +7,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.7.1',
+    date: '2026-07-05',
+    changes: [
+      '絵文字を統一デザインのアイコンに置き換え: アプリ更新・お問い合わせ・変更ログ・診断情報・開閉マーク（設定画面）、バックアップ促しバナー、OCRボタン、PDFサムネイル、施策の「PDFを開く」',
+    ],
+  },
+  {
     version: '1.7.0',
     date: '2026-07-05',
     changes: [

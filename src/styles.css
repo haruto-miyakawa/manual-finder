@@ -270,10 +270,29 @@ body {
   gap: 8px;
   font-size: 14px;
 }
+.bannerMsg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.bannerMsg svg {
+  flex: 0 0 auto;
+}
 .bannerBtns {
   margin-left: auto;
   display: flex;
   gap: 8px;
+}
+
+/* 開閉マーク（▼）: 開いた状態は180度回転 */
+.chev {
+  display: inline-flex;
+  align-items: center;
+  color: var(--fg-dim);
+  transition: transform 0.18s ease;
+}
+.chev.open {
+  transform: rotate(180deg);
 }
 
 /* ---- タブバー ---- */
@@ -572,8 +591,11 @@ body {
   display: block;
 }
 .pdfThumbIcon {
-  font-size: 22px;
-  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-dim);
+  opacity: 0.7;
 }
 .pdfInfo {
   flex: 1;

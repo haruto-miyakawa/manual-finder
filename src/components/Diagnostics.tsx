@@ -3,6 +3,7 @@
 // 注意: ポリフィル適用後の状態を見るので、当アプリで補った機能は ✓ になる。✗ が残っていれば未対応の穴。
 import { useState } from 'react';
 import { APP_VERSION, BUILD_LABEL } from '../version';
+import { DiagnosticsIcon, ChevronDownIcon } from './icons';
 
 function featureChecks(): Array<{ name: string; ok: boolean }> {
   const P = Promise as unknown as Record<string, unknown>;
@@ -53,8 +54,12 @@ export function Diagnostics() {
 
   return (
     <div className="diag">
-      <button className="btn wide" onClick={() => setOpen((v) => !v)}>
-        🩺 診断情報 {open ? '▲' : '▼'}
+      <button className="btn wide" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <DiagnosticsIcon size={20} />
+        診断情報
+        <span className={`chev${open ? ' open' : ''}`}>
+          <ChevronDownIcon size={16} />
+        </span>
       </button>
       {open && (
         <div className="diagBody">

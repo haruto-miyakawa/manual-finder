@@ -7,7 +7,7 @@ import { importPdfFile, setFavorite, type ImportProgress } from '../db/repo';
 import { ensureThumb } from '../pdf/thumb';
 import { ocrPdfPages, terminateOcr } from '../ocr';
 import { exportPartial, downloadBlob, shareFileName } from '../backup/backup';
-import { ExportIcon } from './icons';
+import { ExportIcon, DocIcon } from './icons';
 import type { PdfMeta } from '../types';
 
 interface Props {
@@ -408,7 +408,7 @@ function PdfThumb({ pdfId }: { pdfId: string }) {
   }, [thumb, pdfId]);
   return (
     <span className="pdfThumb">
-      {url ? <img src={url} alt="" /> : <span className="pdfThumbIcon">📄</span>}
+      {url ? <img src={url} alt="" /> : <span className="pdfThumbIcon"><DocIcon size={22} /></span>}
     </span>
   );
 }

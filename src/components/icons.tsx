@@ -124,3 +124,44 @@ export const RebuildIcon = (p: IconProps) => (
     <path d="M3 21v-5h5" />
   </Icon>
 );
+
+/** アプリを更新（単線のリロード矢印）— 設定「アプリを更新（最新版を取得）」 */
+export const AppUpdateIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+    <path d="M21 3v5h-5" />
+  </Icon>
+);
+
+/** お問い合わせ（メール） */
+export const MailIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <path d="m4 7.5 6.6 4.7a2.4 2.4 0 0 0 2.8 0L20 7.5" />
+  </Icon>
+);
+
+/** ドキュメント（行あり）— 変更ログ / PDFファイル一般 */
+export const DocIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+    <path d="M16 13H8" />
+    <path d="M16 17H8" />
+    <path d="M10 9H8" />
+  </Icon>
+);
+
+/** 診断情報（パルス） */
+export const DiagnosticsIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+  </Icon>
+);
+
+/** 開閉マーク（▼）。開いた状態は CSS で180度回転させる */
+export const ChevronDownIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Icon>
+);

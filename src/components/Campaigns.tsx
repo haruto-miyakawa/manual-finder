@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { deleteCampaign, upsertCampaign } from '../db/repo';
+import { DocIcon } from './icons';
 import type { Campaign } from '../types';
 
 interface Props {
@@ -271,7 +272,8 @@ export function Campaigns({ onOpenViewer }: Props) {
                     onOpenViewer(detail.pdfId as string, 1, '');
                   }}
                 >
-                  📄 {titleById.get(detail.pdfId)} を開く
+                  <DocIcon size={20} />
+                  {titleById.get(detail.pdfId)} を開く
                 </button>
               )}
               <button

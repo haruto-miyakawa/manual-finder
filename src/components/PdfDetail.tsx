@@ -5,6 +5,7 @@ import { db } from '../db/db';
 import { deletePdf, setCategory, setFavorite, setTags, setTitle } from '../db/repo';
 import { ocrPdfPages, terminateOcr } from '../ocr';
 import { MemoEditor } from './MemoEditor';
+import { SearchIcon } from './icons';
 
 interface Props {
   pdfId: string;
@@ -99,7 +100,8 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
           </div>
           {!pdf.hasText && (
             <button className="btn wide ocrPdfBtn" onClick={() => void onOcrPdf()}>
-              🔎 OCR（文字認識）で検索対象にする
+              <SearchIcon size={18} />
+              OCR（文字認識）で検索対象にする
             </button>
           )}
 

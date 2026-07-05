@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSettings, updateSettings } from '../settings';
 import { StorageBar } from './StorageBar';
-import { TapIcon, ScrollIcon, RebuildIcon } from './icons';
+import { TapIcon, ScrollIcon, AppUpdateIcon, MailIcon, DocIcon, ChevronDownIcon, LibraryIcon } from './icons';
 import { APP_VERSION, BUILD_LABEL } from '../version';
 import { manualUpdate } from '../pwa';
 import { ChangelogModal } from './ChangelogModal';
@@ -73,7 +73,7 @@ export function SettingsPanel() {
             void manualUpdate();
           }}
         >
-          <RebuildIcon size={20} />
+          <AppUpdateIcon size={20} />
           {updating ? '更新を確認中…' : 'アプリを更新（最新版を取得）'}
         </button>
         <p className="hint">
@@ -84,10 +84,12 @@ export function SettingsPanel() {
       <section className="backupSec">
         <h2 className="secTitle">サポート</h2>
         <a className="btn big supportLink" href={CONTACT_FORM_URL} target="_blank" rel="noopener noreferrer">
-          📧 お問い合わせ（別タブで開きます）
+          <MailIcon size={20} />
+          お問い合わせ（別タブで開きます）
         </a>
         <button className="btn big" onClick={() => setShowLog(true)}>
-          📝 変更ログ
+          <DocIcon size={20} />
+          変更ログ
         </button>
         <Diagnostics />
       </section>
@@ -95,7 +97,11 @@ export function SettingsPanel() {
       <section className="backupSec">
         <h2 className="secTitle">使い方と注意</h2>
         <button className="btn big" onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp}>
-          📖 使い方と注意 {showHelp ? '▲' : '▼'}
+          <LibraryIcon size={20} />
+          使い方と注意
+          <span className={`chev${showHelp ? ' open' : ''}`}>
+            <ChevronDownIcon size={16} />
+          </span>
         </button>
         {showHelp && <HelpContent />}
       </section>

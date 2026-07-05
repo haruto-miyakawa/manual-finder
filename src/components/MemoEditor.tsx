@@ -6,6 +6,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { addPhoto, deletePhoto, setMemoDoc } from '../db/repo';
 import { ocrPhoto } from '../ocr';
+import { SearchIcon } from './icons';
 import type { MemoBlock } from '../types';
 
 interface Props {
@@ -218,7 +219,7 @@ export function MemoEditor({ pdfId, initial, onChanged }: Props) {
               disabled={ocrBusy === b.photoId}
               aria-label="文字認識"
             >
-              {ocrBusy === b.photoId ? '…' : '🔎'}
+              {ocrBusy === b.photoId ? '…' : <SearchIcon size={14} />}
             </button>
             {photoById.get(b.photoId)?.ocrText?.trim() && (
               <span className="photoOcrBadge" aria-label="認識済み">

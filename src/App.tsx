@@ -17,6 +17,7 @@ import { APP_VERSION } from './version';
 import { useSettings } from './settings';
 import { SearchIcon, LibraryIcon, CampaignIcon, BackupIcon, SettingsIcon } from './components/icons';
 
+
 type Tab = 'library' | 'campaigns' | 'backup' | 'settings';
 interface ViewerTarget {
   pdfId: string;
@@ -100,7 +101,10 @@ export default function App() {
 
       {backupNeeded && (
         <div className="banner">
-          <span>📦 データが増えています。定期的にバックアップ（エクスポート）を。</span>
+          <span className="bannerMsg">
+            <BackupIcon size={18} />
+            データが増えています。定期的にバックアップ（エクスポート）を。
+          </span>
           <div className="bannerBtns">
             <button className="btn small" onClick={() => setTab('backup')}>
               バックアップへ
