@@ -161,7 +161,6 @@ body {
 .appMain {
   flex: 1;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   padding: 12px 12px 24px;
 }
 
@@ -743,6 +742,8 @@ body {
 .drawerBody {
   padding: 14px 14px calc(20px + var(--safe-bottom));
   overflow-y: auto;
+  /* iOS: ドロワー内スクロールが背面(.appMain)に連鎖して固まる/引っかかるのを防ぐ */
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1308,7 +1309,6 @@ body {
 .viewerScroll {
   flex: 1;
   overflow: auto;
-  -webkit-overflow-scrolling: touch;
   display: flex;
   justify-content: center;
   padding: 8px;
@@ -1571,9 +1571,20 @@ a.btn {
 }
 
 /* ---- 変更ログ ---- */
+/* 変更ログ（設定画面内のインライン展開） */
+.logInline {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px 14px;
+  margin-bottom: 8px;
+}
 .logEntry {
   border-bottom: 1px solid var(--line);
   padding: 10px 0;
+}
+.logInline .logEntry:last-child {
+  border-bottom: 0;
 }
 .logHead {
   display: flex;
@@ -1654,7 +1665,6 @@ a.btn {
 .scrollPages {
   flex: 1;
   overflow: auto;
-  -webkit-overflow-scrolling: touch;
   position: relative;
   background: #05080b;
   /* バーはオーバーレイなので、先頭/末尾だけバー高ぶんの余白を入れて初期表示で隠れないようにする

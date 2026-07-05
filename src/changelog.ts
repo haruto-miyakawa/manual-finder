@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.7.3',
+    date: '2026-07-05',
+    changes: [
+      '不具合修正: 変更ログを開くと画面が固まることがある問題。ポップアップをやめて設定画面内にそのまま開く方式に変更（もう一度押すと閉じる）',
+      'ドロワー（詳細画面など）のスクロールがiOSで背面に連鎖して引っかかる問題への予防対応',
+    ],
+  },
+  {
     version: '1.7.2',
     date: '2026-07-05',
     changes: [

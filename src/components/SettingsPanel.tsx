@@ -6,7 +6,7 @@ import { StorageBar } from './StorageBar';
 import { TapIcon, ScrollIcon, AppUpdateIcon, MailIcon, DocIcon, ChevronDownIcon, LibraryIcon } from './icons';
 import { APP_VERSION, BUILD_LABEL } from '../version';
 import { manualUpdate } from '../pwa';
-import { ChangelogModal } from './ChangelogModal';
+import { ChangelogList } from './ChangelogList';
 import { Diagnostics } from './Diagnostics';
 import { HelpContent } from './HelpContent';
 
@@ -87,10 +87,14 @@ export function SettingsPanel() {
           <MailIcon size={20} />
           お問い合わせ（別タブで開きます）
         </a>
-        <button className="btn big" onClick={() => setShowLog(true)}>
+        <button className="btn big" onClick={() => setShowLog((v) => !v)} aria-expanded={showLog}>
           <DocIcon size={20} />
           変更ログ
+          <span className={`chev${showLog ? ' open' : ''}`}>
+            <ChevronDownIcon size={16} />
+          </span>
         </button>
+        {showLog && <ChangelogList />}
         <Diagnostics />
       </section>
 
@@ -105,8 +109,6 @@ export function SettingsPanel() {
         </button>
         {showHelp && <HelpContent />}
       </section>
-
-      {showLog && <ChangelogModal onClose={() => setShowLog(false)} />}
     </div>
   );
 }
