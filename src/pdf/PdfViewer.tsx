@@ -9,6 +9,7 @@ import { loadPdfDocument } from './pdfSetup';
 import { getPdfBytes, getPageNote, setPageNote } from '../db/repo';
 import { db } from '../db/db';
 import { normalize, querySegments } from '../search/tokenizer';
+import { MemoIcon, MEMO_ICON_SVG } from '../components/icons';
 import type { NavMode } from '../settings';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -327,7 +328,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
             onClick={() => setNoteOpen(true)}
             aria-label="このページのメモ"
           >
-            📝
+            <MemoIcon size={17} />
           </button>
           <div className="viewerZoom">
             <button className="zoomBtn" onClick={zoomOut} aria-label="縮小">
@@ -659,7 +660,7 @@ function ScrollPdf({
         if (!badge) {
           badge = document.createElement('span');
           badge.className = 'pageNoteBadge';
-          badge.textContent = '📝';
+          badge.innerHTML = MEMO_ICON_SVG; // 静的なSVG文字列（ユーザー入力を含まない）
           slot.appendChild(badge);
         }
       } else if (badge) {

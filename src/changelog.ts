@@ -7,6 +7,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.7.2',
+    date: '2026-07-05',
+    changes: [
+      '残りの絵文字もアイコンに統一: ページメモ（鉛筆）＝ビューアのメモボタン・スクロール表示のメモ印・検索結果のラベル、写真（カメラ）＝メモの「写真を挿入」・検索結果のラベル',
+    ],
+  },
+  {
     version: '1.7.1',
     date: '2026-07-05',
     changes: [

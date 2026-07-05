@@ -6,7 +6,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { addPhoto, deletePhoto, setMemoDoc } from '../db/repo';
 import { ocrPhoto } from '../ocr';
-import { SearchIcon } from './icons';
+import { SearchIcon, CameraIcon } from './icons';
 import type { MemoBlock } from '../types';
 
 interface Props {
@@ -231,7 +231,8 @@ export function MemoEditor({ pdfId, initial, onChanged }: Props) {
       )}
       <div className="memoTools">
         <button className="btn small" onClick={() => fileRef.current?.click()}>
-          📷 写真を挿入（カーソル位置）
+          <CameraIcon size={17} />
+          写真を挿入（カーソル位置）
         </button>
         <input
           ref={fileRef}

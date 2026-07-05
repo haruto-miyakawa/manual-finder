@@ -151,7 +151,7 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
 
           <label className="fieldLabel">ページメモ（{pageNotes.length}）</label>
           {pageNotes.length === 0 ? (
-            <div className="hint">ビューアで各ページの「📝」から、ページごとにメモを残せます。</div>
+            <div className="hint">ビューア上部のメモ（鉛筆）ボタンから、ページごとにメモを残せます。</div>
           ) : (
             <ul className="pageNoteList">
               {pageNotes.map((n) => (

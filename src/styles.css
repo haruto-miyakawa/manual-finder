@@ -684,6 +684,9 @@ body {
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .hitSnippet {
   font-size: 14px;
@@ -1240,8 +1243,13 @@ body {
   background: transparent;
   color: var(--fg-dim);
   border-radius: 8px;
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
+}
+.memoBtn.noted {
+  color: var(--accent);
 }
 .memoBtn.noted {
   border-color: var(--accent);
@@ -1252,10 +1260,12 @@ body {
   top: 4px;
   right: 4px;
   z-index: 3;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
   border-radius: 8px;
-  padding: 1px 5px;
-  font-size: 13px;
+  padding: 4px 5px;
+  display: inline-flex;
+  align-items: center;
   pointer-events: none;
 }
 

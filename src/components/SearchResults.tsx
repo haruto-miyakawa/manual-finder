@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { searchPages } from '../search/searchIndex';
 import { buildSnippet } from '../search/snippet';
 import { db } from '../db/db';
+import { MemoIcon, CameraIcon, DocIcon } from './icons';
 import type { SearchHit } from '../types';
 
 interface Props {
@@ -102,15 +103,25 @@ export function SearchResults({ query, onOpen, onSearchingChange }: Props) {
               <div className="hitTop">
                 <span className="hitTitle">{h.title}</span>
                 <span className="hitPage">
-                  {h.kind === 'memo'
-                    ? '📝 メモ'
-                    : h.kind === 'file'
-                      ? '📄 ファイル名'
-                      : h.kind === 'photo'
-                        ? '📷 写真'
-                        : h.kind === 'note'
-                          ? `p.${h.page} 📝メモ`
-                          : `p.${h.page}`}
+                  {h.kind === 'memo' ? (
+                    <>
+                      <MemoIcon size={13} /> メモ
+                    </>
+                  ) : h.kind === 'file' ? (
+                    <>
+                      <DocIcon size={13} /> ファイル名
+                    </>
+                  ) : h.kind === 'photo' ? (
+                    <>
+                      <CameraIcon size={13} /> 写真
+                    </>
+                  ) : h.kind === 'note' ? (
+                    <>
+                      p.{h.page} <MemoIcon size={13} /> メモ
+                    </>
+                  ) : (
+                    `p.${h.page}`
+                  )}
                 </span>
               </div>
               <div className="hitSnippet" dangerouslySetInnerHTML={{ __html: h.snippetHtml }} />
