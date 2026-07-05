@@ -429,9 +429,8 @@ export async function importAllMerge(
     const incomingPhotos = incomingPhotoMetas
       .map((pm) => ({ meta: pm, bytes: files[`photos/${pm.id}`] }))
       .filter((x): x is { meta: Omit<PhotoRow, 'blob'>; bytes: Uint8Array } => !!x.bytes);
-    const incomingNotes = (manifest.pageNotes ?? [])
-      .filter((n) => n.pdfId === meta.id)
-      .map((n) => ({ page: n.page, text: n.text }));
+    const incomingNoteRows = (manifest.pageNotes ?? []).filter((n) => n.pdfId === meta.id);
+    const incomingNotes = incomingNoteRows.map((n) => ({ page: n.page, text: n.text }));
 
     // 重複判定: バイト完全一致（byteSize で候補を絞ってから全バイト比較）
     let duplicate = false;
@@ -479,13 +478,23 @@ export async function importAllMerge(
       page: p.page,
       text: p.text,
     }));
-    const noteRows: PageNoteRow[] = incomingNotes.map((n) => ({
-      id: `${newPdfId}#${n.page}`,
-      pdfId: newPdfId,
-      page: n.page,
-      text: n.text,
-      updatedAt: now,
-    }));
+    const noteRows: PageNoteRow[] = incomingNoteRows
+      .map((n) => ({
+        id: `${newPdfId}#${n.page}`,
+        pdfId: newPdfId,
+        page: n.page,
+        text: n.text,
+        // ページメモのリッチ本文も photoId を再発行IDへ張り替え（zipに無い壊れ画像参照は落とす）
+        doc: n.doc
+          ?.map((b) =>
+            b.type === 'image' ? { type: 'image' as const, photoId: photoIdMap.get(b.photoId) ?? b.photoId } : b,
+          )
+          .filter((b) => b.type === 'text' || incomingPhotos.some((p) => photoIdMap.get(p.meta.id) === b.photoId)),
+        updatedAt: now,
+      }))
+      // 壊れ画像参照を落とした結果テキストも写真も無くなった行は入れない
+      // （「空のページメモ行は存在しない」不変条件を維持。バッジだけ点く幽霊メモを防ぐ）
+      .filter((n) => n.text.trim() !== '' || (n.doc?.some((b) => b.type === 'image') ?? false));
 
     const newMeta: PdfMeta = {
       ...meta,

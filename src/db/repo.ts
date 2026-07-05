@@ -183,17 +183,22 @@ export async function setCategory(id: string, category: string): Promise<void> {
   await db.pdfs.update(id, { category: category.trim(), updatedAt: Date.now() });
 }
 
-// ---- ページ単位メモ ----
-export async function getPageNote(pdfId: string, page: number): Promise<string> {
+// ---- ページ単位メモ（リッチ: テキスト＋写真インライン） ----
+/** ページメモを取得。旧データ（textのみ）は doc に遅延変換して返す。 */
+export async function getPageNoteDoc(pdfId: string, page: number): Promise<MemoBlock[]> {
   const row = await db.pageNotes.get(`${pdfId}#${page}`);
-  return row?.text ?? '';
+  if (!row) return [];
+  if (row.doc) return row.doc;
+  return row.text?.trim() ? [{ type: 'text', text: row.text }] : [];
 }
-export async function setPageNote(pdfId: string, page: number, text: string): Promise<void> {
+/** ページメモを保存。テキストも写真も無ければ行ごと削除。検索索引(n:)も同時更新。 */
+export async function setPageNoteDoc(pdfId: string, page: number, doc: MemoBlock[]): Promise<void> {
   const id = `${pdfId}#${page}`;
-  const t = text.trim();
-  if (!t) await db.pageNotes.delete(id);
-  else await db.pageNotes.put({ id, pdfId, page, text: t, updatedAt: Date.now() });
-  upsertTextDoc(`n:${id}`, t); // ページメモも検索対象に
+  const text = memoDocText(doc);
+  const hasImage = doc.some((b) => b.type === 'image');
+  if (!text && !hasImage) await db.pageNotes.delete(id);
+  else await db.pageNotes.put({ id, pdfId, page, text, doc, updatedAt: Date.now() });
+  upsertTextDoc(`n:${id}`, text); // ページメモも検索対象に
 }
 
 // ---- 写真（PDFへの注釈） ----

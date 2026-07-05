@@ -475,6 +475,10 @@ body {
   gap: 8px;
   margin: 12px 0 4px;
 }
+/* 詳細画面のカテゴリ再設定チップ（既存カテゴリをタップで割り当て） */
+.catChips {
+  margin: 4px 0 8px;
+}
 .chip {
   min-height: 40px;
   padding: 0 14px;

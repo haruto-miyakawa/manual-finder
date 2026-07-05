@@ -6,10 +6,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { TextLayer, Util } from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import { loadPdfDocument } from './pdfSetup';
-import { getPdfBytes, getPageNote, setPageNote } from '../db/repo';
+import { getPdfBytes, getPageNoteDoc, setPageNoteDoc } from '../db/repo';
 import { db } from '../db/db';
 import { normalize, querySegments } from '../search/tokenizer';
 import { MemoIcon, MEMO_ICON_SVG } from '../components/icons';
+import { BlockEditor } from '../components/BlockEditor';
+import type { MemoBlock } from '../types';
 import type { NavMode } from '../settings';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -50,12 +52,13 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageInput, setPageInput] = useState(String(initialPage));
-  // 上下バー: タップで表示/非表示をトグル（両モード共通・初期は表示）。
-  // バーはオーバーレイ配置なので、トグルしても本文の再レイアウトは起きない。
-  const [chrome, setChrome] = useState(true);
+  // 上下バー: タップで表示/非表示をトグル（両モード共通・初期は非表示＝本文に集中。
+  // 開いた直後に操作ヒントを数秒表示する）。バーはオーバーレイ配置なので、トグルしても本文の再レイアウトは起きない。
+  const [chrome, setChrome] = useState(false);
   const [hintVisible, setHintVisible] = useState(true);
-  const [noteText, setNoteText] = useState('');
-  const [noteOpen, setNoteOpen] = useState(false);
+  // ページメモ（リッチ）: noteOpen=対象ページ番号（開いた時点のページに固定）
+  const [noteOpen, setNoteOpen] = useState<number | null>(null);
+  const [noteDoc, setNoteDoc] = useState<MemoBlock[] | null>(null);
   const [notedPages, setNotedPages] = useState<Set<number>>(new Set());
   // scroll モード用: 明示ジャンプ（スライダー/前後/リンク）でスクロールさせるトークン
   const [jump, setJump] = useState({ page: initialPage, token: 0 });
@@ -130,16 +133,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     setPageInput(String(p));
   }, []);
 
-  // ---- ページメモ ----
-  useEffect(() => {
-    let alive = true;
-    getPageNote(pdfId, pageNum).then((t) => {
-      if (alive) setNoteText(t);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [pdfId, pageNum]);
+  // ---- ページメモ（リッチ） ----
   const reloadNoted = useCallback(async () => {
     const rows = await db.pageNotes.where('pdfId').equals(pdfId).toArray();
     setNotedPages(new Set(rows.map((r) => r.page)));
@@ -147,12 +141,19 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   useEffect(() => {
     void reloadNoted();
   }, [reloadNoted]);
-  const saveNote = useCallback(async () => {
-    await setPageNote(pdfId, pageNum, noteText);
-    await reloadNoted();
-    setNoteOpen(false);
-  }, [pdfId, pageNum, noteText, reloadNoted]);
-  const hasNote = notedPages.has(pageNum) || noteText.trim() !== '';
+  const openNote = useCallback(async () => {
+    const doc = await getPageNoteDoc(pdfId, pageNum);
+    setNoteDoc(doc);
+    setNoteOpen(pageNum); // ドロワー表示中にページが動いても保存先は開いた時のページ
+  }, [pdfId, pageNum]);
+  const closeNote = useCallback(() => {
+    // 保存は BlockEditor が自動で行う（デバウンス＋アンマウント時フラッシュ）
+    setNoteOpen(null);
+    setNoteDoc(null);
+    // フラッシュ完了を少し待ってからバッジを更新
+    setTimeout(() => void reloadNoted(), 400);
+  }, [reloadNoted]);
+  const hasNote = notedPages.has(pageNum);
 
   // ---- 単ページ描画（tapモード） ----
   const renderPage = useCallback(async () => {
@@ -245,6 +246,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
   // ---- ジェスチャ ----
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
   const oneRef = useRef<{ x: number; y: number; t: number; moved: boolean; target: EventTarget | null } | null>(null);
+  const lastTouchRef = useRef(0); // タッチ由来のclick二重発火を抑止するための時刻
 
   const dist = (t: React.TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 
@@ -273,6 +275,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     }
   };
   const onTouchEnd = (e: React.TouchEvent) => {
+    lastTouchRef.current = Date.now();
     const p = pinchRef.current;
     if (p && e.touches.length < 2 && wrapRef.current) {
       const m = wrapRef.current.style.transform.match(/scale\(([\d.]+)\)/);
@@ -302,6 +305,18 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
     }
   };
 
+  // マウス環境のフォールバック（tapモード）: タッチと同じ左右/中央判定を click で行う。
+  // タッチ端末では touchend 直後の合成 click を時刻で抑止し二重発火を防ぐ。
+  const onTapModeClick = (e: React.MouseEvent) => {
+    if (navMode !== 'tap') return;
+    if (Date.now() - lastTouchRef.current < 800) return; // タッチ由来のclickは無視
+    if ((e.target as HTMLElement).closest?.('.pdfLink')) return;
+    const w = scrollRef.current?.clientWidth ?? window.innerWidth;
+    if (e.clientX < w * 0.33) prev();
+    else if (e.clientX > w * 0.67) next();
+    else toggleChrome();
+  };
+
   // キーボード（デスクトップ検証用）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -325,7 +340,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
           </div>
           <button
             className={`memoBtn${hasNote ? ' noted' : ''}`}
-            onClick={() => setNoteOpen(true)}
+            onClick={() => void openNote()}
             aria-label="このページのメモ"
           >
             <MemoIcon size={17} />
@@ -370,6 +385,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
+          onClick={onTapModeClick}
         >
           <div className="viewerPageWrap" ref={wrapRef}>
             <canvas ref={canvasRef} className="viewerCanvas" />
@@ -416,7 +432,7 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
         </button>
       </footer>
 
-      {!chrome && hintVisible && (
+      {!chrome && hintVisible && !loading && !error && (
         <div className="viewerHint" aria-hidden>
           {navMode === 'tap'
             ? `中央タップでバー表示　·　左右タップでページ送り　·　${pageNum} / ${numPages}`
@@ -424,22 +440,22 @@ export function PdfViewer({ pdfId, title, initialPage = 1, highlightQuery = '', 
         </div>
       )}
 
-      {noteOpen && (
-        <div className="overlay" onClick={() => void saveNote()}>
+      {noteOpen !== null && noteDoc !== null && (
+        <div className="overlay" onClick={closeNote}>
           <div className="drawer" onClick={(e) => e.stopPropagation()}>
             <header className="drawerHead">
-              <div className="drawerTitle">P.{pageNum} のメモ</div>
-              <button className="btn primary" onClick={() => void saveNote()}>
-                保存
+              <div className="drawerTitle">P.{noteOpen} のメモ</div>
+              <button className="btn primary" onClick={closeNote}>
+                閉じる
               </button>
             </header>
             <div className="drawerBody">
-              <textarea
-                className="textArea"
-                rows={6}
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                placeholder={`${pageNum}ページ目のメモ`}
+              <BlockEditor
+                key={`${pdfId}#${noteOpen}`}
+                pdfId={pdfId}
+                initial={noteDoc}
+                persist={(doc) => setPageNoteDoc(pdfId, noteOpen, doc)}
+                placeholder={`${noteOpen}ページ目のメモ（下のボタンで写真も差し込めます）`}
               />
             </div>
           </div>

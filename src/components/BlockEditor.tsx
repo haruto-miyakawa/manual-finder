@@ -1,18 +1,20 @@
-// リッチメモ（PDF紐付け）: テキストの任意位置に写真を差し込めるブロックエディタ。
-// iOS純正メモのイメージで「文章→写真→文章」と縦に混在。追加依存なし（contenteditable不使用）。
-// データは MemoBlock[]（text|image）。画像バイトは photos テーブル、参照は photoId。
+// リッチメモの汎用ブロックエディタ: テキストの任意位置に写真を差し込める（iOS純正メモのイメージ）。
+// PDFメモ（setMemoDoc）とページメモ（setPageNoteDoc）で共用する。保存関数は persist で注入。
+// データは MemoBlock[]（text|image）。画像バイトは photos テーブル（pdfId紐付け）、参照は photoId。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { addPhoto, deletePhoto, setMemoDoc } from '../db/repo';
+import { addPhoto, deletePhoto } from '../db/repo';
 import { ocrPhoto } from '../ocr';
 import { SearchIcon, CameraIcon } from './icons';
 import type { MemoBlock } from '../types';
 
 interface Props {
-  pdfId: string;
+  pdfId: string; // 写真の紐付け先
   initial: MemoBlock[];
+  persist: (doc: MemoBlock[]) => Promise<void>;
   onChanged?: () => void;
+  placeholder?: string;
 }
 
 /** 空textの連続を畳み、末尾に必ず入力用のtextブロックを置く。 */
@@ -41,7 +43,7 @@ function autoGrow(el: HTMLTextAreaElement | null): void {
   el.style.height = `${Math.max(44, el.scrollHeight)}px`;
 }
 
-export function MemoEditor({ pdfId, initial, onChanged }: Props) {
+export function BlockEditor({ pdfId, initial, persist, onChanged, placeholder }: Props) {
   const [blocks, setBlocks] = useState<MemoBlock[]>(() => normalizeBlocks(initial));
   const rootRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -49,12 +51,16 @@ export function MemoEditor({ pdfId, initial, onChanged }: Props) {
   const cursorRef = useRef<{ idx: number; pos: number } | null>(null);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  const onChangedRef = useRef(onChanged);
+  onChangedRef.current = onChanged;
   const dirtyRef = useRef(false);
   const editGen = useRef(0); // 編集世代。保存中に入った編集を dirty のまま残すために使う
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ocrBusy, setOcrBusy] = useState<string | null>(null);
 
-  // PDF切替時に再初期化
+  // 対象切替時に再初期化（利用側は対象ごとに key を変えること）
   useEffect(() => {
     setBlocks(normalizeBlocks(initial));
     cursorRef.current = null;
@@ -81,29 +87,26 @@ export function MemoEditor({ pdfId, initial, onChanged }: Props) {
     return () => Object.values(map).forEach((u) => URL.revokeObjectURL(u));
   }, [photos]);
 
-  const persist = useCallback(
-    async (next: MemoBlock[]) => {
-      const gen = editGen.current;
-      await setMemoDoc(pdfId, next);
-      // 保存中に新しい編集が入っていたら dirty を残す（lost-update 防止）
-      if (editGen.current === gen) dirtyRef.current = false;
-      onChanged?.();
-    },
-    [pdfId, onChanged],
-  );
+  const doPersist = useCallback(async (next: MemoBlock[]) => {
+    const gen = editGen.current;
+    await persistRef.current(next);
+    // 保存中に新しい編集が入っていたら dirty を残す（lost-update 防止）
+    if (editGen.current === gen) dirtyRef.current = false;
+    onChangedRef.current?.();
+  }, []);
 
   // テキスト編集はデバウンス保存、構造変更（写真の挿入/削除）は即時保存
   const scheduleSave = useCallback(() => {
     dirtyRef.current = true;
     editGen.current++;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => void persist(blocksRef.current), 600);
-  }, [persist]);
+    saveTimer.current = setTimeout(() => void doPersist(blocksRef.current), 600);
+  }, [doPersist]);
 
   const flush = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    if (dirtyRef.current) void persist(blocksRef.current);
-  }, [persist]);
+    if (dirtyRef.current) void doPersist(blocksRef.current);
+  }, [doPersist]);
 
   // アンマウント時に未保存分をフラッシュ
   useEffect(() => {
@@ -159,7 +162,7 @@ export function MemoEditor({ pdfId, initial, onChanged }: Props) {
     next = normalizeBlocks(next);
     cursorRef.current = null; // 構造が変わったので古いカーソル位置は無効
     setBlocks(next);
-    await persist(next);
+    await doPersist(next);
   }
 
   async function removeImage(idx: number) {
@@ -170,7 +173,7 @@ export function MemoEditor({ pdfId, initial, onChanged }: Props) {
     cursorRef.current = null; // インデックスがシフトするので古いカーソル位置は無効
     setBlocks(next);
     await deletePhoto(b.photoId); // 画像バイト＋OCR索引も削除
-    await persist(next);
+    await doPersist(next);
   }
 
   async function runOcr(photoId: string) {
@@ -182,7 +185,7 @@ export function MemoEditor({ pdfId, initial, onChanged }: Props) {
       alert(`OCR失敗: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setOcrBusy(null);
-      onChanged?.();
+      onChangedRef.current?.();
     }
   }
 
@@ -201,7 +204,7 @@ export function MemoEditor({ pdfId, initial, onChanged }: Props) {
             onFocus={(e) => (cursorRef.current = { idx, pos: e.currentTarget.selectionStart ?? 0 })}
             onSelect={(e) => (cursorRef.current = { idx, pos: e.currentTarget.selectionStart ?? 0 })}
             onBlur={flush}
-            placeholder={idx === 0 ? 'このマニュアルのメモ（下のボタンで写真も差し込めます）' : ''}
+            placeholder={idx === 0 ? (placeholder ?? 'メモ（下のボタンで写真も差し込めます）') : ''}
           />
         ) : (
           <div key={b.photoId} className="memoImage">

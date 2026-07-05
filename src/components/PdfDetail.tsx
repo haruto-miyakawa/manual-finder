@@ -2,9 +2,9 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { deletePdf, setCategory, setFavorite, setTags, setTitle } from '../db/repo';
+import { deletePdf, setCategory, setFavorite, setMemoDoc, setTags, setTitle } from '../db/repo';
 import { ocrPdfPages, terminateOcr } from '../ocr';
-import { MemoEditor } from './MemoEditor';
+import { BlockEditor } from './BlockEditor';
 import { SearchIcon } from './icons';
 
 interface Props {
@@ -105,20 +105,37 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
             </button>
           )}
 
-          <label className="fieldLabel">カテゴリ（分類・1つ）</label>
+          <label className="fieldLabel">カテゴリ（分類・1つ）— タップで設定</label>
+          <div className="tagChips catChips">
+            <button
+              className={`chip${!category.trim() ? ' on' : ''}`}
+              onClick={() => {
+                setCategoryLocal('');
+                void setCategory(pdfId, '');
+              }}
+            >
+              未分類
+            </button>
+            {allCats.map((c) => (
+              <button
+                key={c}
+                className={`chip${category.trim() === c ? ' on' : ''}`}
+                onClick={() => {
+                  setCategoryLocal(c);
+                  void setCategory(pdfId, c);
+                }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
           <input
             className="textField"
-            list="cat-suggestions"
             value={category}
             onChange={(e) => setCategoryLocal(e.target.value)}
             onBlur={() => void setCategory(pdfId, category)}
-            placeholder="例: エアコン / 冷蔵庫 / レジ・接客（未入力＝未分類）"
+            placeholder="新しいカテゴリ名を入力（例: エアコン / 冷蔵庫）"
           />
-          <datalist id="cat-suggestions">
-            {allCats.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
 
           <label className="fieldLabel">タグ</label>
           <div className="tagEditRow">
@@ -147,7 +164,13 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
           </div>
 
           <label className="fieldLabel">メモ（テキストの好きな位置に写真を差し込めます）</label>
-          <MemoEditor pdfId={pdfId} initial={pdf.memoDoc ?? []} onChanged={onChanged} />
+          <BlockEditor
+            pdfId={pdfId}
+            initial={pdf.memoDoc ?? []}
+            persist={(doc) => setMemoDoc(pdfId, doc)}
+            onChanged={onChanged}
+            placeholder="このマニュアルのメモ（下のボタンで写真も差し込めます）"
+          />
 
           <label className="fieldLabel">ページメモ（{pageNotes.length}）</label>
           {pageNotes.length === 0 ? (
@@ -158,7 +181,7 @@ export function PdfDetail({ pdfId, onClose, onOpenViewer, onChanged }: Props) {
                 <li key={n.id}>
                   <button className="pageNoteItem" onClick={() => onOpenViewer(pdfId, n.page, '')}>
                     <span className="pageNoteP">P.{n.page}</span>
-                    <span className="pageNoteText">{n.text}</span>
+                    <span className="pageNoteText">{n.text || '（写真のみ）'}</span>
                   </button>
                 </li>
               ))}

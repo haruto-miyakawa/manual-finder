@@ -1,6 +1,6 @@
 // IndexedDB スキーマ（Dexie）。PDFメタ・バイト・ページ本文・写真・施策・meta を保持。
 import Dexie, { type Table } from 'dexie';
-import type { PdfMeta, PdfBlobRow, PageRow, PhotoRow, Campaign, MetaRow } from '../types';
+import type { PdfMeta, PdfBlobRow, PageRow, PhotoRow, Campaign, MetaRow, MemoBlock } from '../types';
 
 export interface ThumbRow {
   id: string; // = PdfMeta.id
@@ -11,7 +11,8 @@ export interface PageNoteRow {
   id: string; // `${pdfId}#${page}`
   pdfId: string;
   page: number;
-  text: string;
+  text: string; // doc のテキスト部分を連結した派生値（検索索引・一覧表示用）
+  doc?: MemoBlock[]; // リッチメモ本体（v1.8.0〜）。旧データは text のみ＝編集時に遅延変換
   updatedAt: number;
 }
 
