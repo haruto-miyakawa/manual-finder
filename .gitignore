@@ -27,3 +27,7 @@ public/tesseract/
 # 内部仕様書（公開リポジトリに含めない）
 manual-pwa-ultracode-prompt.md
 manual-finder-spec-*.md
+
+# AI指示ファイル（vault導線を含み得るため非公開・ローカル専用）
+CLAUDE.md
+CLAUDE.local.md
